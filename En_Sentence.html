@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>练习网页生成器 0.7 (智能默认)</title>
+    <style>
+        /* --- Generator Page Styles (Unchanged) --- */
+        body { max-width: 600px; margin: 20px auto; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; user-select: none; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; }
+        .container { background: white; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px; }
+        .card-form { margin-bottom: 20px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
+        #cardsContainer { min-height: 50px; padding: 5px 0; }
+        .card-item { background: #f8f9fa; border-radius: 8px; padding: 15px; margin: 10px 0; position: relative; padding-bottom: 50px; border: 1px solid #eee; cursor: grab; transition: background-color 0.2s ease, box-shadow 0.2s ease; }
+        .card-item.dragging { opacity: 0.5; background: #dcedc8; cursor: grabbing; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
+        .card-item.drag-over { border-top: 2px solid #4CAF50; }
+        input, textarea { width: 100%; margin: 8px 0; padding: 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 16px; box-sizing: border-box; cursor: text; }
+        button { background: #4CAF50; color: white; border: none; padding: 14px 28px; border-radius: 5px; cursor: pointer; margin: 5px; font-size: 16px; transition: 0.3s; }
+        button:hover { opacity: 0.9; }
+        .output-area { margin-top: 30px; }
+        .instructions { margin-top: 40px; padding: 15px; background: #fff3e0; border-radius: 8px; }
+        .delete-card-btn { position: absolute; bottom: 10px; right: 15px; background: #f44336; color: white; padding: 5px 10px; font-size: 12px; border-radius: 4px; margin: 0; line-height: 1; cursor: pointer; }
+        .delete-card-btn:hover { background: #d32f2f; opacity: 1; }
+
+        /* --- Style for Explanation Box in Generator --- */
+        .explanation-item { background: #fff9c4; border: 1px solid #fbc02d; }
+        .explanation-item textarea { height: 80px; }
+
+        @media (max-width: 768px) { body { padding: 10px; } input, textarea { font-size: 15px; padding: 10px; } button { padding: 12px 24px; font-size: 15px; width: 100%; margin: 8px 0; } .card-item { padding: 12px; padding-bottom: 45px; } .delete-card-btn { bottom: 8px; right: 12px; padding: 4px 8px; font-size: 11px; } .instructions { margin-top: 20px; font-size: 14px; } }
+        @media (max-width: 480px) { h2 { font-size: 1.5em; } .card-form h3 { font-size: 1.2em; } .card-item { padding-bottom: 40px; } .delete-card-btn { bottom: 6px; right: 10px; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>练习网页生成器 0.7 (智能默认)</h2>
+
+        <div class="card-form">
+            <h3>1. 设置基本信息</h3>
+            <div class="form-group">
+                <label for="practiceDate">日期：</label>
+                <input type="text" id="practiceDate" placeholder="例：YYYY年-MM月-DD日">
+            </div>
+        </div>
+
+        <div class="card-form">
+            <h3>2. 添加练习卡片 (可拖拽排序)</h3>
+            <div id="cardsContainer">
+                <div class="card-item" draggable="true" ondragstart="handleDragStart(event)" ondragend="handleDragEnd(event)" ondragover="handleDragOver(event)" ondragenter="handleDragEnter(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+                    <input type="text" placeholder="英文句子">
+                    <input type="text" placeholder="中文翻译">
+                    <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
+                </div>
+            </div>
+            <button onclick="addCard()">添加卡片</button>
+            <button onclick="addExplanationBox()" style="background: #FFC107;">添加说明框</button>
+        </div>
+
+        <button onclick="generatePage()" style="background: #2196F3;">生成练习网页</button>
+
+        <div class="output-area">
+            <h3>3. 生成结果</h3>
+            <textarea id="outputCode" rows="10" readonly></textarea>
+            <button onclick="downloadPage()">下载HTML文件</button>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <h3>使用说明：</h3>
+        1. 日期已自动填充为当天，可修改<br>
+        2. 点击"添加卡片"按钮创建新练习项<br>
+        3. 每个卡片需填写英文句子和中文翻译<br>
+        4. 可点击卡片右下角的"删除此条"按钮移除不需要的卡片<br>
+        5. 按住卡片并拖动可以调整练习顺序<br>
+        6. <strong>新功能：</strong>点击“添加说明框”可以插入解释性文本。说明框支持基础HTML标签，如 <b>加粗</b> 或 <i>斜体</i>。<br>
+        7. 点击"生成练习网页"查看代码预览<br>
+        8. 点击"下载HTML文件"保存生成的网页<br>
+        9. <strong>新特性：</strong>生成的页面默认语速为0.7x，并会优先选择 "Microsoft Ava" 等高质量朗读者。<br>
+        10. 在生成的页面中，先看中文，然后点击“显示/朗读英文”按钮来显示英文并听取发音。
+    </div>
+
+    <script>
+        // --- Auto-populate Date & Card Management (Unchanged) ---
+        (function() {
+            function setTodaysDate() { const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); document.getElementById('practiceDate').value = `${year}年-${month}月-${day}日`; }
+            setTodaysDate();
+            const cardsContainer = document.getElementById('cardsContainer');
+            let draggedItem = null;
+            window.addCard = function() { const newCard = document.createElement('div'); newCard.className = 'card-item'; newCard.setAttribute('draggable', 'true'); newCard.addEventListener('dragstart', handleDragStart); newCard.addEventListener('dragend', handleDragEnd); newCard.addEventListener('dragover', handleDragOver); newCard.addEventListener('drop', handleDrop); newCard.innerHTML = `<input type="text" placeholder="英文句子"><input type="text" placeholder="中文翻译"><button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>`; cardsContainer.appendChild(newCard); };
+            
+            window.addExplanationBox = function() {
+               const newBox = document.createElement('div');
+               newBox.className = 'card-item explanation-item'; // Use both classes for consistent behavior
+               newBox.setAttribute('draggable', 'true');
+               newBox.addEventListener('dragstart', handleDragStart);
+               newBox.addEventListener('dragend', handleDragEnd);
+               newBox.addEventListener('dragover', handleDragOver);
+               newBox.addEventListener('drop', handleDrop);
+               newBox.innerHTML = `<textarea placeholder="在此输入说明文字..."></textarea><button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>`;
+               cardsContainer.appendChild(newBox);
+           };
+
+            window.deleteCard = function(btn) { btn.closest('.card-item')?.remove(); };
+            function handleDragStart(e) { if (e.target.classList.contains('card-item')) { draggedItem = e.target; setTimeout(() => e.target.classList.add('dragging'), 0); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', null); } else { e.preventDefault(); } }
+            function handleDragEnd() { if (draggedItem) { draggedItem.classList.remove('dragging'); } document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); draggedItem = null; }
+            function handleDragOver(e) { e.preventDefault(); const target = e.target.closest('.card-item'); if (target && target !== draggedItem) { const after = getDragAfterElement(cardsContainer, e.clientY); document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); if (after == null) { cardsContainer.lastElementChild.classList.add('drag-over'); } else { after.classList.add('drag-over'); } } }
+            function handleDrop(e) { e.preventDefault(); if (!draggedItem) return; const after = getDragAfterElement(cardsContainer, e.clientY); if (after == null) { cardsContainer.appendChild(draggedItem); } else { cardsContainer.insertBefore(draggedItem, after); } document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over')); }
+            function getDragAfterElement(cont, y) { const draggables = [...cont.querySelectorAll('.card-item:not(.dragging)')]; return draggables.reduce((closest, child) => { const box = child.getBoundingClientRect(); const offset = y - box.top - box.height / 2; if (offset < 0 && offset > closest.offset) return { offset: offset, element: child }; else return closest; }, { offset: Number.NEGATIVE_INFINITY }).element; }
+        })();
+
+        // ---  !!! MODIFIED SECTION: Generate Page and Download !!! ---
+        function generatePage() {
+            const date = document.getElementById('practiceDate').value || '未指定日期';
+            const cards = document.querySelectorAll('#cardsContainer .card-item');
+            let cardsHTML = '';
+            cards.forEach((card, index) => {
+                if (card.classList.contains('explanation-item')) {
+                    const explanationText = card.querySelector('textarea')?.value || '';
+                    if (explanationText.trim() !== '') {
+                        // Allow basic HTML and replace newlines with <br> for display
+                        const formattedText = explanationText.replace(/\n/g, '<br>');
+                        cardsHTML += `<div class="explanation-box">${formattedText}</div>`;
+                    }
+                } else {
+                    const englishText = card.querySelector('input[placeholder="英文句子"]')?.value || '';
+                    const chineseText = card.querySelector('input[placeholder="中文翻译"]')?.value || '';
+                    if (englishText.trim() !== '') {
+                        const safeEnglish = englishText.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '"');
+                        const englishElementId = `english-${index}`;
+                        cardsHTML += `
+                            <div class="card">
+                                <div class="content">
+                                    <div class="english" id="${englishElementId}">${englishText}</div>
+                                    <div class="chinese">${chineseText}</div>
+                                </div>
+                                <button class="reveal-btn" onclick="revealAndSpeak(this, '${englishElementId}', '${safeEnglish}')">显示/朗读英文</button>
+                            </div>
+                        `;
+                    }
+                }
+            });
+
+            // --- MODIFIED TEMPLATE FOR GENERATED PAGE ---
+            const pageTemplate = `
+                <!DOCTYPE html>
+                <html lang="zh-CN">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>英语听力练习 - ${date}</title>
+                    <style>
+                        body { max-width: 600px; margin: 20px auto; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
+                        .date-header { text-align: center; margin: 10px 0 20px 0; font-weight: bold; color: #2c3e50; font-size: 1.2em; }
+                        .controls { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 25px; display: flex; flex-wrap: wrap; gap: 15px; }
+                        .control-group { flex: 1; min-width: 200px; }
+                        .controls label { display: block; margin-bottom: 5px; font-weight: 500; color: #333; font-size: 0.9em; }
+                        .controls select { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95em; box-sizing: border-box; }
+                        .card { background: #ffffff; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 25px; margin: 20px 0; }
+                        .explanation-box { background: #eef7ff; border-left: 5px solid #2196F3; padding: 15px 20px; margin: 20px 0; border-radius: 8px; color: #333; line-height: 1.7; font-size: 1.05em; }
+                        .explanation-box b, .explanation-box strong { color: #1e88e5; }
+                        .content { margin-bottom: 15px; }
+                        .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.4; display: none; }
+                        .english.visible { display: block; }
+                        .chinese { font-size: 1.1em; color: #34495e; padding-left: 15px; position: relative; font-style: italic; }
+                        .chinese::before { content: '» '; position: absolute; left: 0; top: 1px; color: #777; }
+                        .reveal-btn { display: inline-block; background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 0.95em; transition: background-color 0.3s ease; }
+                        .reveal-btn:hover { background-color: #1976D2; }
+                        @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } }
+                        @media (max-width: 480px) { body { padding: 10px; } .reveal-btn { width: 100%; } }
+                    </style>
+                </head>
+                <body>
+                    <div class="date-header">${date}</div>
+                    <div class="controls">
+                        <div class="control-group"> <label for="voiceSelectGenerated">选择英语朗读者:</label> <select id="voiceSelectGenerated"> <option value="">加载中...</option> </select> </div>
+                        <div class="control-group"> <label for="speedSelectGenerated">选择语速:</label>
+                            <!-- MODIFIED: Default speed is now 0.7x -->
+                            <select id="speedSelectGenerated">
+                                <option value="0.7" selected>慢速 (0.7x)</option>
+                                <option value="0.9">稍慢 (0.9x)</option>
+                                <option value="1">正常 (1x)</option>
+                                <option value="1.2">稍快 (1.2x)</option>
+                                <option value="1.5">快速 (1.5x)</option>
+                            </select>
+                        </div>
+                    </div>
+                    ${cardsHTML}
+                    <script>
+                        const voiceSelect = document.getElementById('voiceSelectGenerated');
+                        const speedSelect = document.getElementById('speedSelectGenerated');
+                        let availableVoices = [];
+
+                        // --- MODIFIED: Smarter voice selection logic ---
+                        function populateVoiceList() {
+                            if (!('speechSynthesis' in window)) {
+                                voiceSelect.innerHTML = '<option value="">浏览器不支持语音</option>';
+                                return;
+                            }
+                            availableVoices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en-'));
+                            if (availableVoices.length === 0) {
+                                voiceSelect.innerHTML = speechSynthesis.getVoices().length === 0 ? '<option value="">等待语音加载...</option>' : '<option value="">无可用英文语音</option>';
+                                return;
+                            }
+                            voiceSelect.innerHTML = ''; // Clear existing options
+
+                            // 1. Populate the dropdown with all available English voices
+                            availableVoices.forEach(voice => {
+                                const option = document.createElement('option');
+                                option.textContent = \`\${voice.name} (\${voice.lang})\`;
+                                option.value = voice.name;
+                                voiceSelect.appendChild(option);
+                            });
+
+                            // 2. Determine the best default voice with a priority system
+                            const preferredVoiceName = 'Microsoft Ava Online (Natural)';
+                            let selectedIndex = -1;
+
+                            // Priority 1: Find "Microsoft Ava Online (Natural)"
+                            selectedIndex = availableVoices.findIndex(voice => voice.name === preferredVoiceName);
+
+                            // Priority 2: If not found, find any other "Natural" Microsoft voice
+                            if (selectedIndex === -1) {
+                                selectedIndex = availableVoices.findIndex(voice => voice.name.includes('Microsoft') && voice.name.includes('Natural'));
+                            }
+
+                            // Priority 3: If still not found, find any "en-US" voice
+                            if (selectedIndex === -1) {
+                                selectedIndex = availableVoices.findIndex(voice => voice.lang === 'en-US');
+                            }
+                            
+                            // Priority 4: If all else fails, use the first available voice
+                            if (selectedIndex === -1) {
+                                selectedIndex = 0;
+                            }
+
+                            // 3. Set the selected voice in the dropdown
+                            if (selectedIndex > -1 && voiceSelect.options.length > selectedIndex) {
+                                voiceSelect.options[selectedIndex].selected = true;
+                            }
+                        }
+
+                        populateVoiceList();
+                        if ('speechSynthesis' in window && speechSynthesis.onvoiceschanged !== undefined) {
+                            speechSynthesis.onvoiceschanged = populateVoiceList;
+                        }
+
+                        // --- Other script functions (unchanged) ---
+                        function speakText(text) {
+                            if (!('speechSynthesis' in window)) { alert('您的浏览器不支持语音合成功能'); return; }
+                            const utterance = new SpeechSynthesisUtterance(text);
+                            const selectedVoiceName = voiceSelect.value;
+                            const targetVoice = selectedVoiceName ? availableVoices.find(voice => voice.name === selectedVoiceName) : null;
+                            if (targetVoice) { utterance.voice = targetVoice; utterance.lang = targetVoice.lang; }
+                            else { utterance.lang = 'en-US'; }
+                            utterance.rate = parseFloat(speedSelect.value) || 1.0;
+                            window.speechSynthesis.cancel();
+                            window.speechSynthesis.speak(utterance);
+                        }
+
+                        function revealAndSpeak(buttonElement, englishElementId, textToSpeak) {
+                            const englishDiv = document.getElementById(englishElementId);
+                            if (!englishDiv.classList.contains('visible')) {
+                                englishDiv.classList.add('visible');
+                                buttonElement.textContent = '再次朗读';
+                                buttonElement.style.backgroundColor = '#4CAF50';
+                            }
+                            speakText(textToSpeak);
+                        }
+                    <\/script>
+                </body>
+                </html>
+            `;
+            document.getElementById('outputCode').value = pageTemplate;
+            document.getElementById('outputCode').readOnly = false;
+        }
+
+        function downloadPage() {
+            const code = document.getElementById('outputCode').value;
+            if (!code) { alert('请先生成网页代码'); return; }
+            const blob = new Blob([code], { type: 'text/html;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const dateValue = document.getElementById('practiceDate').value || '新练习';
+            const safeDate = dateValue.replace(/[^a-zA-Z0-9\u4e00-\u9fa5年\u6708\u65e5-]+/g, '_');
+            a.href = url;
+            a.download = `练习_${safeDate}.html`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
