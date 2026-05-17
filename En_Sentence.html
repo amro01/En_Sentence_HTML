@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 0.8 (排序按钮)</title>
+    <title>练习网页生成器 0.9 (简单的猎手)</title>
     <style>
         /* --- Generator Page Styles --- */
         body { max-width: 600px; margin: 20px auto; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
@@ -201,7 +201,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>练习网页生成器 0.8 (排序按钮)</h2>
+        <h2>练习网页生成器 0.9 (简单的猎手)</h2>
 
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
@@ -228,6 +228,15 @@
             </div>
             <button onclick="addCard()">添加卡片</button>
             <button onclick="addExplanationBox()" style="background: #FFC107;">添加说明框</button>
+        </div>
+
+        <div class="card-form" style="background: #e3f2fd; border: 1px solid #2196f3;">
+            <h3>3. 家长管理设置 (影响生成的页面)</h3>
+            <div class="form-group">
+                <label>管理密码: <input type="text" id="adminPass" value="1234" style="width:120px;"></label>
+                <label>判定不熟练 (重听次数 > X): <input type="number" id="replayThreshold" value="2" style="width:60px;"></label>
+                <label>判定不熟练 (思考秒数 > X): <input type="number" id="timeThreshold" value="8" style="width:60px;"></label>
+            </div>
         </div>
 
         <button onclick="generatePage()" style="background: #2196F3;">生成练习网页</button>
@@ -375,6 +384,9 @@
         // ---  !!! MODIFIED SECTION: Generate Page and Download !!! ---
         function generatePage() {
             const date = document.getElementById('practiceDate').value || '未指定日期';
+            const adminPass = document.getElementById('adminPass').value || '1234';
+            const replayThreshold = parseInt(document.getElementById('replayThreshold').value) || 2;
+            const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 8;
             const cards = document.querySelectorAll('#cardsContainer .card-item');
             let cardsHTML = '';
             cards.forEach((card, index) => {
@@ -392,12 +404,16 @@
                         const safeEnglish = englishText.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '"');
                         const englishElementId = `english-${index}`;
                         cardsHTML += `
-                            <div class="card">
+                            <div class="card" data-english="${safeEnglish}">
                                 <div class="content">
+                                    <div class="chinese" onclick="revealChinese(this, '${safeEnglish}')" title="点击看中文">
+                                        ${chineseText}
+                                    </div>
                                     <div class="english" id="${englishElementId}">${englishText}</div>
-                                    <div class="chinese">${chineseText}</div>
                                 </div>
-                                <button class="reveal-btn" onclick="revealAndSpeak(this, '${englishElementId}', '${safeEnglish}')">显示/朗读英文</button>
+                                <button class="reveal-btn locked" onclick="handleRevealBtn(this, '${englishElementId}', '${safeEnglish}')" disabled>
+                                    显示/朗读英文
+                                </button>
                             </div>
                         `;
                     }
@@ -425,10 +441,37 @@
                         .content { margin-bottom: 15px; }
                         .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.4; display: none; }
                         .english.visible { display: block; }
-                        .chinese { font-size: 1.1em; color: #34495e; padding-left: 15px; position: relative; font-style: italic; }
+                        .chinese {
+                            font-size: 1.1em;
+                            color: #34495e;
+                            padding-left: 15px;
+                            position: relative;
+                            font-style: italic;
+                            filter: blur(6px);
+                            transition: filter 0.3s ease;
+                            cursor: help;
+                            user-select: none;
+                        }
                         .chinese::before { content: '» '; position: absolute; left: 0; top: 1px; color: #777; }
+                        .chinese.revealed {
+                            filter: blur(0);
+                        }
                         .reveal-btn { display: inline-block; background: #2196F3; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-size: 0.95em; transition: background-color 0.3s ease; }
                         .reveal-btn:hover { background-color: #1976D2; }
+                        .reveal-btn.locked {
+                            background-color: #ccc !important;
+                            cursor: not-allowed;
+                            opacity: 0.6;
+                        }
+                        /* 隐藏的小星星按钮 */
+                        .parent-gate {
+                            margin-top: 50px;
+                            padding: 20px;
+                            text-align: center;
+                            opacity: 0.2;
+                        }
+                        .parent-gate:hover { opacity: 1; }
+                        .admin-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; }
                         @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } }
                         @media (max-width: 480px) { body { padding: 10px; } .reveal-btn { width: 100%; } }
                     </style>
@@ -449,7 +492,20 @@
                         </div>
                     </div>
                     ${cardsHTML}
+                    <div class="parent-gate">
+                        <button class="admin-btn" onclick="openAdmin()">★ Parental Control</button>
+                    </div>
                     <script>
+                        // --- 从生成器注入的配置 ---
+                        const CONFIG = {
+                            pass: "${adminPass}",
+                            replayLimit: ${replayThreshold},
+                            timeLimit: ${timeThreshold}
+                        };
+
+                        // 1. 初始化统计数据
+                        let stats = JSON.parse(localStorage.getItem('EnPracticeStats') || '{}');
+
                         const voiceSelect = document.getElementById('voiceSelectGenerated');
                         const speedSelect = document.getElementById('speedSelectGenerated');
                         let availableVoices = [];
@@ -508,7 +564,58 @@
                             speechSynthesis.onvoiceschanged = populateVoiceList;
                         }
 
-                        // --- Other script functions (unchanged) ---
+                        // 2. 显示中文并开始计时（解锁按钮）
+                        function revealChinese(el, englishText) {
+                            if (!el.classList.contains('revealed')) {
+                                el.classList.add('revealed');
+                                // 激活对应的按钮
+                                const btn = el.closest('.card').querySelector('.reveal-btn');
+                                btn.classList.remove('locked');
+                                btn.disabled = false;
+
+                                // 记录开始思考的时间点
+                                if (!stats[englishText]) {
+                                    stats[englishText] = { replay: 0, time: 0, count: 0 };
+                                }
+                                stats[englishText].start = Date.now();
+                            }
+                        }
+
+                        // 3. 处理显示/朗读按钮
+                        function handleRevealBtn(btn, elementId, englishText) {
+                            // 安全检查：必须先点击中文
+                            const chineseDiv = btn.parentElement.querySelector('.chinese');
+                            if (!chineseDiv.classList.contains('revealed')) {
+                                alert("请先点击中文，思考如何翻译成英文哦！");
+                                return;
+                            }
+
+                            const englishDiv = document.getElementById(elementId);
+
+                            if (!englishDiv.classList.contains('visible')) {
+                                // 【首次点击】
+                                englishDiv.classList.add('visible');
+                                btn.textContent = '再次朗读';
+                                btn.style.backgroundColor = '#4CAF50';
+
+                                // 计算思考时长
+                                const duration = Math.floor((Date.now() - stats[englishText].start) / 1000);
+
+                                // 更新统计 (取最长的一次思考时间)
+                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
+                                stats[englishText].time = Math.max(stats[englishText].time, duration);
+                                stats[englishText].count += 1; // 总练习次数
+                            } else {
+                                // 【重复点击：朗读次数+1】
+                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
+                                stats[englishText].replay += 1;
+                            }
+
+                            // 实时保存
+                            localStorage.setItem('EnPracticeStats', JSON.stringify(stats));
+                            speakText(englishText);
+                        }
+
                         function speakText(text) {
                             if (!('speechSynthesis' in window)) { alert('您的浏览器不支持语音合成功能'); return; }
                             const utterance = new SpeechSynthesisUtterance(text);
@@ -521,14 +628,32 @@
                             window.speechSynthesis.speak(utterance);
                         }
 
-                        function revealAndSpeak(buttonElement, englishElementId, textToSpeak) {
-                            const englishDiv = document.getElementById(englishElementId);
-                            if (!englishDiv.classList.contains('visible')) {
-                                englishDiv.classList.add('visible');
-                                buttonElement.textContent = '再次朗读';
-                                buttonElement.style.backgroundColor = '#4CAF50';
+                        // 4. 家长管理面板（导出不熟练的句子）
+                        function openAdmin() {
+                            const password = prompt("请输入管理密码查看报告:");
+                            if (password !== CONFIG.pass) {
+                                alert("密码错误");
+                                return;
                             }
-                            speakText(textToSpeak);
+
+                            let report = "--- 孩子练习表现报告 ---\\n\\n";
+                            let count = 0;
+
+                            for (let key in stats) {
+                                const item = stats[key];
+                                // 判定标准：使用生成器配置的阈值
+                                if (item.replay > CONFIG.replayLimit || item.time > CONFIG.timeLimit) {
+                                    report += \`❌ 待加强: "\${key}"\\n   原因: 重读\${item.replay}次, 思考\${item.time}秒, 练习\${item.count}次\\n\\n\`;
+                                    count++;
+                                }
+                            }
+
+                            if (count === 0) {
+                                alert("目前所有句子表现良好，继续保持！");
+                            } else {
+                                alert(report + "提示：以上内容已尝试复制到剪贴板。");
+                                navigator.clipboard.writeText(report);
+                            }
                         }
                     <\/script>
                 </body>
