@@ -234,6 +234,7 @@
             <h3>3. 家长管理设置 (影响生成的页面)</h3>
             <div class="form-group">
                 <label>管理密码: <input type="text" id="adminPass" value="1234" style="width:120px;"></label>
+                <label>孩子姓名: <input type="text" id="childName" value="宝贝" style="width:120px;"></label>
                 <label>判定不熟练 (重听次数 > X): <input type="number" id="replayThreshold" value="2" style="width:60px;"></label>
                 <label>判定不熟练 (思考秒数 > X): <input type="number" id="timeThreshold" value="8" style="width:60px;"></label>
             </div>
@@ -385,9 +386,24 @@
         function generatePage() {
             const date = document.getElementById('practiceDate').value || '未指定日期';
             const adminPass = document.getElementById('adminPass').value || '1234';
+            const childName = document.getElementById('childName').value || '宝贝';
             const replayThreshold = parseInt(document.getElementById('replayThreshold').value) || 2;
             const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 8;
             const cards = document.querySelectorAll('#cardsContainer .card-item');
+            // 生成基于日期和内容的唯一练习ID
+            let contentHash = 0;
+            cards.forEach(card => {
+                const inputs = card.querySelectorAll('input, textarea');
+                inputs.forEach(input => {
+                    const val = input.value || '';
+                    for (let i = 0; i < val.length; i++) {
+                        contentHash = ((contentHash << 5) - contentHash) + val.charCodeAt(i);
+                        contentHash |= 0;
+                    }
+                });
+            });
+            const cleanDate = date.replace(/[^0-9]/g, '');
+            const practiceId = 'STATS_' + cleanDate + '_' + Math.abs(contentHash).toString(36);
             let cardsHTML = '';
             cards.forEach((card, index) => {
                 if (card.classList.contains('explanation-item')) {
@@ -463,15 +479,22 @@
                             cursor: not-allowed;
                             opacity: 0.6;
                         }
-                        /* 隐藏的小星星按钮 */
-                        .parent-gate {
-                            margin-top: 50px;
-                            padding: 20px;
-                            text-align: center;
-                            opacity: 0.2;
-                        }
-                        .parent-gate:hover { opacity: 1; }
-                        .admin-btn { background: none; border: none; cursor: pointer; font-size: 14px; color: #ccc; }
+                        /* 奖励领取模块 */
+                        .reward-area { text-align: center; margin-top: 30px; padding: 20px; }
+                        .reward-hint { font-size: 1.1em; color: #e67e22; margin-bottom: 15px; }
+                        .reward-btn { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; border: none; padding: 18px 36px; border-radius: 50px; cursor: pointer; font-size: 1.3em; font-weight: bold; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 4px 15px rgba(245,87,108,0.4); }
+                        .reward-btn:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(245,87,108,0.6); }
+                        .reward-btn:active { transform: scale(0.98); }
+                        .hidden { display: none !important; }
+                        .star-display { margin-top: 20px; padding: 30px; background: linear-gradient(135deg, #fff9e6, #fff3cd); border: 2px solid #ffc107; border-radius: 20px; box-shadow: 0 4px 15px rgba(255,193,7,0.3); animation: fadeInUp 0.6s ease; }
+                        .star-rating { font-size: 3em; margin: 15px 0; letter-spacing: 5px; }
+                        .star-content h2 { color: #e67e22; margin: 0; }
+                        #medal-message { font-size: 1.2em; color: #2c3e50; margin: 10px 0; }
+                        .save-hint { font-size: 1em; color: #e67e22; margin-top: 15px; font-style: italic; }
+                        #confetti-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; overflow: hidden; }
+                        .confetti-piece { position: absolute; top: -10px; opacity: 0.9; animation: confettiFall linear forwards; }
+                        @keyframes confettiFall { 0% { transform: translateY(-10px) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
+                        @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
                         @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } }
                         @media (max-width: 480px) { body { padding: 10px; } .reveal-btn { width: 100%; } }
                     </style>
@@ -492,19 +515,31 @@
                         </div>
                     </div>
                     ${cardsHTML}
-                    <div class="parent-gate">
-                        <button class="admin-btn" onclick="openAdmin()">★ Parental Control</button>
+                    <div class="reward-area">
+                        <p class="reward-hint">👑 完成所有练习后，点击下方按钮领取今日勋章！</p>
+                        <button class="reward-btn" onclick="claimReward()">🎉 完成挑战，领取勋章</button>
+                        <div id="confetti-container"></div>
+                        <div id="star-display" class="star-display hidden">
+                            <div class="star-content">
+                                <h2>🏆 今日评价</h2>
+                                <div id="star-rating" class="star-rating"></div>
+                                <p id="medal-message"></p>
+                                <p class="save-hint">📁 请将勋章存入"成就文件夹"，满50颗星星换大餐哦！</p>
+                            </div>
+                        </div>
                     </div>
                     <script>
                         // --- 从生成器注入的配置 ---
                         const CONFIG = {
                             pass: "${adminPass}",
+                            childName: "${childName}",
+                            practiceId: "${practiceId}",
                             replayLimit: ${replayThreshold},
                             timeLimit: ${timeThreshold}
                         };
 
                         // 1. 初始化统计数据
-                        let stats = JSON.parse(localStorage.getItem('EnPracticeStats') || '{}');
+                        let stats = JSON.parse(localStorage.getItem(CONFIG.practiceId) || '{}');
 
                         const voiceSelect = document.getElementById('voiceSelectGenerated');
                         const speedSelect = document.getElementById('speedSelectGenerated');
@@ -612,7 +647,7 @@
                             }
 
                             // 实时保存
-                            localStorage.setItem('EnPracticeStats', JSON.stringify(stats));
+                            localStorage.setItem(CONFIG.practiceId, JSON.stringify(stats));
                             speakText(englishText);
                         }
 
@@ -628,32 +663,119 @@
                             window.speechSynthesis.speak(utterance);
                         }
 
-                        // 4. 家长管理面板（导出不熟练的句子）
-                        function openAdmin() {
-                            const password = prompt("请输入管理密码查看报告:");
-                            if (password !== CONFIG.pass) {
-                                alert("密码错误");
-                                return;
-                            }
-
-                            let report = "--- 孩子练习表现报告 ---\\n\\n";
-                            let count = 0;
+                        // 4. 星级评定与勋章领取系统
+                        function calculateStars() {
+                            let total = 0, perfect = 0, good = 0;
+                            let challengeList = [], perfectList = [];
 
                             for (let key in stats) {
+                                if (key === 'start') continue;
                                 const item = stats[key];
-                                // 判定标准：使用生成器配置的阈值
-                                if (item.replay > CONFIG.replayLimit || item.time > CONFIG.timeLimit) {
-                                    report += \`❌ 待加强: "\${key}"\\n   原因: 重读\${item.replay}次, 思考\${item.time}秒, 练习\${item.count}次\\n\\n\`;
-                                    count++;
+                                total++;
+                                if (item.time < 5 && item.replay === 0) {
+                                    perfect++;
+                                    perfectList.push(key);
+                                } else if (item.replay <= 1 && item.time < 10) {
+                                    good++;
+                                } else {
+                                    challengeList.push(key);
                                 }
                             }
 
-                            if (count === 0) {
-                                alert("目前所有句子表现良好，继续保持！");
-                            } else {
-                                alert(report + "提示：以上内容已尝试复制到剪贴板。");
-                                navigator.clipboard.writeText(report);
+                            let stars = 1;
+                            if (total > 0) {
+                                if (perfect === total) stars = 5;
+                                else if ((perfect + good) / total >= 0.8) stars = 4;
+                                else if (challengeList.length < total / 2) stars = 3;
+                                else stars = 2;
                             }
+
+                            return { stars, total, perfect, good, challengeList, perfectList };
+                        }
+
+                        function generateReport() {
+                            const result = calculateStars();
+                            let report = \`🏆 恭喜 \${CONFIG.childName} 获得今日英语勋章！\\n\\n\`;
+                            report += \`成就：今日获得 \${'⭐'.repeat(result.stars)}（\${result.stars}颗星）\\n\\n\`;
+
+                            if (result.perfectList.length > 0) {
+                                report += \`📗 红榜 (Perfect)：\\n这些句子你已经完全掌握了，太棒了！\\n\`;
+                                result.perfectList.forEach(s => report += \`  ✅ \${s}\\n\`);
+                                report += '\\n';
+                            }
+
+                            if (result.challengeList.length > 0) {
+                                report += \`💪 挑战榜 (Challenge)：\\n这 \${result.challengeList.length} 个句子是"明日小怪兽"，建议明天再挑战它们两次！\\n\`;
+                                result.challengeList.forEach(s => report += \`  🔄 \${s}\\n\`);
+                                report += '\\n';
+                            }
+
+                            report += \`📊 原始数据：\\n\`;
+                            for (let key in stats) {
+                                if (key === 'start') continue;
+                                const item = stats[key];
+                                report += \`  \${key} -> 思考\${item.time}秒, 重听\${item.replay}次, 练习\${item.count}次\\n\`;
+                            }
+
+                            return report;
+                        }
+
+                        function startConfetti() {
+                            const container = document.getElementById('confetti-container');
+                            container.innerHTML = '';
+                            const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6b9d','#c44dff'];
+                            for (let i = 0; i < 80; i++) {
+                                const piece = document.createElement('div');
+                                piece.className = 'confetti-piece';
+                                piece.style.left = Math.random() * 100 + '%';
+                                piece.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+                                piece.style.animationDuration = (Math.random() * 2 + 1) + 's';
+                                piece.style.animationDelay = (Math.random() * 0.5) + 's';
+                                piece.style.width = (Math.random() * 8 + 4) + 'px';
+                                piece.style.height = (Math.random() * 8 + 4) + 'px';
+                                piece.style.borderRadius = Math.random() > 0.5 ? '50%' : '2px';
+                                container.appendChild(piece);
+                            }
+                            setTimeout(() => { container.innerHTML = ''; }, 4000);
+                        }
+
+                        function claimReward() {
+                            const result = calculateStars();
+                            if (result.total === 0) {
+                                alert("还没有练习记录，请先完成练习哦！");
+                                return;
+                            }
+
+                            startConfetti();
+
+                            document.getElementById('star-display').classList.remove('hidden');
+                            document.getElementById('star-rating').textContent = '⭐'.repeat(result.stars);
+
+                            const messages = {
+                                5: '🌟 卓越！完美表现，你是英语小天才！',
+                                4: '👏 优秀！表现非常棒，继续加油！',
+                                3: '💪 加油！多练几次就会更熟练！',
+                                2: '👍 不错！明天再挑战一次吧！',
+                                1: '🌱 好的开始！每一次练习都在进步！'
+                            };
+                            document.getElementById('medal-message').textContent = messages[result.stars] || messages[1];
+
+                            const report = generateReport();
+                            const today = new Date();
+                            const dateStr = \`\${today.getFullYear()}-\${String(today.getMonth()+1).padStart(2,'0')}-\${String(today.getDate()).padStart(2,'0')}\`;
+                            const filename = \`\${dateStr}_\${result.stars}星勋章.txt\`;
+
+                            const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+
+                            document.getElementById('star-display').scrollIntoView({ behavior: 'smooth' });
                         }
                     <\/script>
                 </body>
