@@ -669,10 +669,10 @@
                                 if (key === 'start') continue;
                                 const item = stats[key];
                                 total++;
-                                if (item.time < 5 && item.replay === 0) {
+                                if (item.time < 15 && item.replay <= 1) {
                                     perfect++;
                                     perfectList.push(key);
-                                } else if (item.replay <= 1 && item.time < 10) {
+                                } else if (item.replay <= 2 && item.time < 25) {
                                     good++;
                                 } else {
                                     challengeList.push(key);
