@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 v1.1 (给我星星 -v-)</title>
+    <title>练习网页生成器 v1.2 (附魔！ -v-)</title>
     <style>
         /* --- Generator Page Styles --- */
         body { max-width: 600px; margin: 20px auto; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
@@ -177,6 +177,74 @@
             height: 80px;
         }
 
+        /* --- Anki Import Styles --- */
+        .collapse-header {
+            cursor: pointer;
+            user-select: none;
+        }
+        .collapse-header::before {
+            content: '▶ ';
+            font-size: 0.8em;
+        }
+        .collapse-header.open::before {
+            content: '▼ ';
+        }
+        .collapse-body {
+            display: none;
+            padding: 10px 0;
+        }
+        .collapse-body.open {
+            display: block;
+        }
+        .anki-section {
+            background: #e8f5e9;
+            border: 1px solid #66bb6a;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .anki-section .status { margin-top: 10px; }
+        .anki-section .error { color: red; }
+        .anki-word-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            padding: 8px;
+            background: #fff;
+        }
+        .anki-word-item {
+            display: flex;
+            align-items: center;
+            padding: 4px 6px;
+            border-bottom: 1px solid #eee;
+            gap: 8px;
+        }
+        .anki-word-item:last-child { border-bottom: none; }
+        .anki-word-item input[type="checkbox"] { width: 18px; height: 18px; margin: 0; cursor: pointer; flex-shrink: 0; }
+        .anki-word-item .word-en { font-weight: bold; min-width: 120px; }
+        .anki-word-item .word-zh { color: #666; min-width: 100px; }
+        .anki-word-item .word-lapses { color: #999; font-size: 0.85em; }
+
+        /* --- AI Section Styles --- */
+        .ai-section {
+            background: #e3f2fd;
+            border: 1px solid #2196f3;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        .ai-settings {
+            background: #f5f5f5;
+            border-radius: 6px;
+            padding: 12px;
+            margin-bottom: 12px;
+        }
+        .ai-settings .form-group { margin-bottom: 10px; }
+        .ai-settings input { margin: 4px 0; }
+        .ai-settings label { font-size: 0.9em; }
+        .ai-status { margin-top: 10px; white-space: pre-wrap; font-size: 0.9em; }
+
         /* --- Responsive Design --- */
         @media (max-width: 768px) {
             body { padding: 10px; }
@@ -203,6 +271,18 @@
     <div class="container">
         <h2>练习网页生成器 1.1 (简单的猎手)</h2>
 
+        <!-- Anki 导入模块（折叠） -->
+        <div class="anki-section">
+            <h3 class="collapse-header" onclick="toggleCollapse(this)">Anki 单词导入</h3>
+            <div class="collapse-body">
+                <p>上传 .apkg 文件，提取忘记次数大于 0 的单词。</p>
+                <input type="file" id="ankiFileInput" accept=".apkg">
+                <div id="ankiStatus" class="status"></div>
+                <div id="ankiWordList" class="anki-word-list"></div>
+                <p style="font-size:0.85em;color:#666;margin-top:8px;">勾选 3-5 个单词用于 AI 仿写</p>
+            </div>
+        </div>
+
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
             <div class="form-group">
@@ -228,6 +308,32 @@
             </div>
             <button onclick="addCard()">添加卡片</button>
             <button onclick="addExplanationBox()" style="background: #FFC107;">添加说明框</button>
+        </div>
+
+        <!-- AI 扩写模块 -->
+        <div class="ai-section">
+            <h3>AI 仿写生成</h3>
+            <div class="ai-settings">
+                <div class="form-group">
+                    <label for="aiApiKey">API Key：</label>
+                    <input type="password" id="aiApiKey" placeholder="sk-...">
+                </div>
+                <div class="form-group">
+                    <label for="aiBaseUrl">Base URL：</label>
+                    <input type="text" id="aiBaseUrl" value="https://api.deepseek.com">
+                </div>
+                <div class="form-group">
+                    <label for="aiModel">模型：</label>
+                    <input type="text" id="aiModel" value="deepseek-chat">
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="aiSentence">书本例句（供 AI 模仿语法结构）：</label>
+                <input type="text" id="aiSentence" placeholder="输入1个书本例句">
+            </div>
+            <div id="aiSelectedWords" style="margin:8px 0;font-size:0.9em;color:#555;"></div>
+            <button id="aiGenerateBtn" onclick="aiGenerate()" style="background: #9C27B0;">AI 仿写生成</button>
+            <div id="aiStatus" class="ai-status"></div>
         </div>
 
         <div class="card-form" style="background: #e3f2fd; border: 1px solid #2196f3;">
@@ -261,17 +367,18 @@
         9. 点击"生成练习网页"查看代码预览<br>
         10. 点击"下载HTML文件"保存生成的网页<br>
         11. <strong>新特性：</strong>生成的页面默认语速为0.7x，并会优先选择 "Microsoft Ava" 等高质量朗读者。<br>
-        12. 在生成的页面中，先看中文，然后点击"显示/朗读英文"按钮来显示英文并听取发音。
+        12. 在生成的页面中，先看中文，然后点击"显示/朗读英文"按钮来显示英文并听取发音。<br>
+        13. <strong>Anki 导入：</strong>展开顶部模块，上传 .apkg 文件自动提取忘记的单词。<br>
+        14. <strong>AI 仿写：</strong>勾选 Anki 单词（3-5个），输入1个书本例句，AI 会模仿例句语法生成5个新练习句并自动添加为卡片。
     </div>
 
     <script>
-        // --- Auto-populate Date & Card Management (Unchanged) ---
+        // --- Auto-populate Date & Card Management ---
         (function() {
             function setTodaysDate() { const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); document.getElementById('practiceDate').value = `${year}年-${month}月-${day}日`; }
             setTodaysDate();
             const cardsContainer = document.getElementById('cardsContainer');
-            let draggedItem = null;
-            window.addCard = function() {
+            window.addCard = function(englishText, chineseText) {
                 const newCard = document.createElement('div');
                 newCard.className = 'card-item';
                 
@@ -287,8 +394,8 @@
                 const cardContent = document.createElement('div');
                 cardContent.className = 'card-content';
                 cardContent.innerHTML = `
-                    <input type="text" placeholder="英文句子">
-                    <input type="text" placeholder="中文翻译">
+                    <input type="text" placeholder="英文句子" value="${escapeHtml(englishText || '')}">
+                    <input type="text" placeholder="中文翻译" value="${escapeHtml(chineseText || '')}">
                     <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
                 `;
                 
@@ -381,7 +488,223 @@
             }
         })();
 
-        // ---  !!! MODIFIED SECTION: Generate Page and Download !!! ---
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // --- 折叠开关 ---
+        function toggleCollapse(el) {
+            el.classList.toggle('open');
+            const body = el.nextElementSibling;
+            if (body) body.classList.toggle('open');
+        }
+
+        // --- Anki 导入逻辑 ---
+        let ankiWords = []; // [{english, chinese, lapses}]
+
+        document.getElementById('ankiFileInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const statusDiv = document.getElementById('ankiStatus');
+            const wordListDiv = document.getElementById('ankiWordList');
+            statusDiv.textContent = '正在处理...';
+            statusDiv.className = 'status';
+            wordListDiv.innerHTML = '';
+
+            try {
+                const arrayBuf = await file.arrayBuffer();
+                const zipData = new Uint8Array(arrayBuf);
+                const zip = await JSZip.loadAsync(zipData);
+
+                // 优先 anki21b（需 Zstd 解压），兼容 anki2（直接读取）
+                let collectionFile = zip.file('collection.anki21b');
+                let needsZstd = true;
+                if (!collectionFile) {
+                    collectionFile = zip.file('collection.anki2');
+                    needsZstd = false;
+                }
+                if (!collectionFile) {
+                    statusDiv.textContent = '错误：未找到 collection.anki21b 或 collection.anki2 文件';
+                    statusDiv.className = 'status error';
+                    return;
+                }
+
+                let sqliteData = await collectionFile.async('uint8array');
+
+                if (needsZstd) {
+                    const decompressed = fzstd.decompress(sqliteData);
+                    sqliteData = decompressed;
+                }
+
+                // 校验 SQLite 文件头
+                const sqliteHeader = 'SQLite format 3';
+                const actualHeader = new TextDecoder().decode(sqliteData.slice(0, 16));
+                if (actualHeader !== sqliteHeader) {
+                    statusDiv.textContent = '错误：数据不是 SQLite 数据库';
+                    statusDiv.className = 'status error';
+                    return;
+                }
+
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+                });
+                const db = new SQL.Database(sqliteData);
+
+                const results = db.exec(
+                    "SELECT n.flds, c.lapses FROM cards c JOIN notes n ON c.nid = n.id WHERE c.queue != -1 AND c.lapses > 0 ORDER BY c.lapses DESC"
+                );
+
+                db.close();
+
+                if (results.length === 0 || results[0].values.length === 0) {
+                    statusDiv.textContent = '没有找到忘记次数大于 0 的单词';
+                    statusDiv.className = 'status';
+                    return;
+                }
+
+                const rows = results[0].values;
+                ankiWords = [];
+                for (const row of rows) {
+                    const flds = row[0];
+                    const lapses = row[1];
+                    const parts = flds.split('\x1f');
+                    ankiWords.push({
+                        english: parts[0] || '',
+                        chinese: parts[1] || '',
+                        lapses: lapses
+                    });
+                }
+
+                // 渲染单词列表（可勾选）
+                let listHtml = '';
+                ankiWords.forEach((w, idx) => {
+                    listHtml += `<div class="anki-word-item">
+                        <input type="checkbox" data-index="${idx}" onchange="updateAiSelectedWords()">
+                        <span class="word-en">${escapeHtml(w.english)}</span>
+                        <span class="word-zh">${escapeHtml(w.chinese)}</span>
+                        <span class="word-lapses">忘记 ${w.lapses} 次</span>
+                    </div>`;
+                });
+                wordListDiv.innerHTML = listHtml;
+                statusDiv.textContent = `共找到 ${ankiWords.length} 个单词，请勾选 3-5 个用于 AI 仿写`;
+                statusDiv.className = 'status';
+                updateAiSelectedWords();
+            } catch (err) {
+                statusDiv.textContent = '错误：' + err.message;
+                statusDiv.className = 'status error';
+            }
+        });
+
+        function updateAiSelectedWords() {
+            const checkboxes = document.querySelectorAll('#ankiWordList input[type="checkbox"]:checked');
+            const selectedDiv = document.getElementById('aiSelectedWords');
+            if (checkboxes.length === 0) {
+                selectedDiv.textContent = '未选择任何单词';
+                return;
+            }
+            const words = [];
+            checkboxes.forEach(cb => {
+                const idx = parseInt(cb.dataset.index);
+                if (ankiWords[idx]) words.push(ankiWords[idx].english);
+            });
+            selectedDiv.textContent = '已选中：' + words.join('、');
+        }
+
+        function getSelectedAnkiWords() {
+            const checkboxes = document.querySelectorAll('#ankiWordList input[type="checkbox"]:checked');
+            const words = [];
+            checkboxes.forEach(cb => {
+                const idx = parseInt(cb.dataset.index);
+                if (ankiWords[idx]) words.push(ankiWords[idx]);
+            });
+            return words;
+        }
+
+        // --- AI 仿写生成 ---
+        async function aiGenerate() {
+            const apiKey = document.getElementById('aiApiKey').value.trim();
+            const baseUrl = document.getElementById('aiBaseUrl').value.trim().replace(/\/+$/, '');
+            const model = document.getElementById('aiModel').value.trim();
+            const sentence = document.getElementById('aiSentence').value.trim();
+            const selectedWords = getSelectedAnkiWords();
+
+            const statusDiv = document.getElementById('aiStatus');
+
+            if (!apiKey) { statusDiv.textContent = '请填写 API Key'; return; }
+            if (!sentence) { statusDiv.textContent = '请填写书本例句'; return; }
+            if (selectedWords.length < 3 || selectedWords.length > 5) {
+                statusDiv.textContent = '请勾选 3-5 个 Anki 单词';
+                return;
+            }
+
+            const wordListStr = selectedWords.map(w => `"${w.english}" (${w.chinese})`).join('、');
+            const prompt = `你是一个英语教学助手。请严格模仿以下例句的语法结构，将给定的单词融入其中，生成5个新的英语练习句。\n\n例句：${sentence}\n\n需要融入的单词：${wordListStr}\n\n要求：\n1. 每个句子必须严格模仿例句的语法结构（时态、句式、句型）\n2. 将给定的单词自然地融入句子中\n3. 每个句子后面用 --- 分隔，并给出中文翻译\n4. 输出格式：每行一个句子，格式为 "英文句子 --- 中文翻译"`;
+
+            statusDiv.textContent = '正在调用 AI ...';
+            document.getElementById('aiGenerateBtn').disabled = true;
+
+            try {
+                const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [
+                            { role: 'system', content: '你是一个专业的英语教学助手，擅长模仿例句结构生成练习句。' },
+                            { role: 'user', content: prompt }
+                        ],
+                        temperature: 0.8,
+                        max_tokens: 2000
+                    })
+                });
+
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`API 请求失败 (${response.status}): ${errText}`);
+                }
+
+                const data = await response.json();
+                const content = data.choices?.[0]?.message?.content || '';
+                if (!content) {
+                    throw new Error('AI 返回内容为空');
+                }
+
+                statusDiv.textContent = 'AI 生成成功，正在添加卡片...';
+
+                // 解析生成的句子，每行格式：英文 --- 中文
+                const lines = content.split('\n').filter(line => line.trim() && line.includes('---'));
+                let addedCount = 0;
+                for (const line of lines) {
+                    const sepIndex = line.indexOf('---');
+                    if (sepIndex === -1) continue;
+                    const en = line.substring(0, sepIndex).trim();
+                    const zh = line.substring(sepIndex + 3).trim();
+                    if (en && zh) {
+                        addCard(en, zh);
+                        addedCount++;
+                    }
+                }
+
+                if (addedCount === 0) {
+                    // 尝试按行解析，可能没有 --- 分隔，直接显示原始内容
+                    statusDiv.textContent = 'AI 返回内容格式异常，请检查 API 返回：\n' + content;
+                } else {
+                    statusDiv.textContent = `AI 仿写完成，已添加 ${addedCount} 个新卡片`;
+                }
+            } catch (err) {
+                statusDiv.textContent = 'AI 生成失败：' + err.message;
+            } finally {
+                document.getElementById('aiGenerateBtn').disabled = false;
+            }
+        }
+
+        // --- Generate Page and Download (unchanged from v1.1) ---
         function generatePage() {
             const date = document.getElementById('practiceDate').value || '未指定日期';
             const childName = document.getElementById('childName').value || '宝贝';
@@ -407,7 +730,6 @@
                 if (card.classList.contains('explanation-item')) {
                     const explanationText = card.querySelector('textarea')?.value || '';
                     if (explanationText.trim() !== '') {
-                        // Allow basic HTML and replace newlines with <br> for display
                         const formattedText = explanationText.replace(/\n/g, '<br>');
                         cardsHTML += `<div class="explanation-box">${formattedText}</div>`;
                     }
@@ -434,7 +756,6 @@
                 }
             });
 
-            // --- MODIFIED TEMPLATE FOR GENERATED PAGE ---
             const pageTemplate = `
                 <!DOCTYPE html>
                 <html lang="zh-CN">
@@ -477,7 +798,6 @@
                             cursor: not-allowed;
                             opacity: 0.6;
                         }
-                        /* 奖励领取模块 */
                         .reward-area { text-align: center; margin-top: 30px; padding: 20px; }
                         .reward-hint { font-size: 1.1em; color: #e67e22; margin-bottom: 15px; }
                         .reward-btn { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; border: none; padding: 18px 36px; border-radius: 50px; cursor: pointer; font-size: 1.3em; font-weight: bold; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 4px 15px rgba(245,87,108,0.4); }
@@ -502,7 +822,6 @@
                     <div class="controls">
                         <div class="control-group"> <label for="voiceSelectGenerated">选择英语朗读者:</label> <select id="voiceSelectGenerated"> <option value="">加载中...</option> </select> </div>
                         <div class="control-group"> <label for="speedSelectGenerated">选择语速:</label>
-                            <!-- MODIFIED: Default speed is now 0.7x -->
                             <select id="speedSelectGenerated">
                                 <option value="0.7" selected>慢速 (0.7x)</option>
                                 <option value="0.9">稍慢 (0.9x)</option>
@@ -527,7 +846,6 @@
                         </div>
                     </div>
                     <script>
-                        // --- 从生成器注入的配置 ---
                         const CONFIG = {
                             childName: "${childName}",
                             practiceId: "${practiceId}",
@@ -535,14 +853,12 @@
                             timeLimit: ${timeThreshold}
                         };
 
-                        // 1. 初始化统计数据
                         let stats = JSON.parse(localStorage.getItem(CONFIG.practiceId) || '{}');
 
                         const voiceSelect = document.getElementById('voiceSelectGenerated');
                         const speedSelect = document.getElementById('speedSelectGenerated');
                         let availableVoices = [];
 
-                        // --- MODIFIED: Smarter voice selection logic ---
                         function populateVoiceList() {
                             if (!('speechSynthesis' in window)) {
                                 voiceSelect.innerHTML = '<option value="">浏览器不支持语音</option>';
@@ -553,9 +869,8 @@
                                 voiceSelect.innerHTML = speechSynthesis.getVoices().length === 0 ? '<option value="">等待语音加载...</option>' : '<option value="">无可用英文语音</option>';
                                 return;
                             }
-                            voiceSelect.innerHTML = ''; // Clear existing options
+                            voiceSelect.innerHTML = '';
 
-                            // 1. Populate the dropdown with all available English voices
                             availableVoices.forEach(voice => {
                                 const option = document.createElement('option');
                                 option.textContent = \`\${voice.name} (\${voice.lang})\`;
@@ -563,29 +878,20 @@
                                 voiceSelect.appendChild(option);
                             });
 
-                            // 2. Determine the best default voice with a priority system
                             const preferredVoiceName = 'Microsoft Ava Online (Natural)';
                             let selectedIndex = -1;
 
-                            // Priority 1: Find "Microsoft Ava Online (Natural)"
                             selectedIndex = availableVoices.findIndex(voice => voice.name === preferredVoiceName);
-
-                            // Priority 2: If not found, find any other "Natural" Microsoft voice
                             if (selectedIndex === -1) {
                                 selectedIndex = availableVoices.findIndex(voice => voice.name.includes('Microsoft') && voice.name.includes('Natural'));
                             }
-
-                            // Priority 3: If still not found, find any "en-US" voice
                             if (selectedIndex === -1) {
                                 selectedIndex = availableVoices.findIndex(voice => voice.lang === 'en-US');
                             }
-                            
-                            // Priority 4: If all else fails, use the first available voice
                             if (selectedIndex === -1) {
                                 selectedIndex = 0;
                             }
 
-                            // 3. Set the selected voice in the dropdown
                             if (selectedIndex > -1 && voiceSelect.options.length > selectedIndex) {
                                 voiceSelect.options[selectedIndex].selected = true;
                             }
@@ -596,16 +902,12 @@
                             speechSynthesis.onvoiceschanged = populateVoiceList;
                         }
 
-                        // 2. 显示中文并开始计时（解锁按钮）
                         function revealChinese(el, englishText) {
                             if (!el.classList.contains('revealed')) {
                                 el.classList.add('revealed');
-                                // 激活对应的按钮
                                 const btn = el.closest('.card').querySelector('.reveal-btn');
                                 btn.classList.remove('locked');
                                 btn.disabled = false;
-
-                                // 记录开始思考的时间点
                                 if (!stats[englishText]) {
                                     stats[englishText] = { replay: 0, time: 0, count: 0 };
                                 }
@@ -613,9 +915,7 @@
                             }
                         }
 
-                        // 3. 处理显示/朗读按钮
                         function handleRevealBtn(btn, elementId, englishText) {
-                            // 安全检查：必须先点击中文
                             const chineseDiv = btn.parentElement.querySelector('.chinese');
                             if (!chineseDiv.classList.contains('revealed')) {
                                 alert("请先点击中文，思考如何翻译成英文哦！");
@@ -625,25 +925,18 @@
                             const englishDiv = document.getElementById(elementId);
 
                             if (!englishDiv.classList.contains('visible')) {
-                                // 【首次点击】
                                 englishDiv.classList.add('visible');
                                 btn.textContent = '再次朗读';
                                 btn.style.backgroundColor = '#4CAF50';
-
-                                // 计算思考时长
                                 const duration = Math.floor((Date.now() - stats[englishText].start) / 1000);
-
-                                // 更新统计 (取最长的一次思考时间)
                                 if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
                                 stats[englishText].time = Math.max(stats[englishText].time, duration);
-                                stats[englishText].count += 1; // 总练习次数
+                                stats[englishText].count += 1;
                             } else {
-                                // 【重复点击：朗读次数+1】
                                 if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
                                 stats[englishText].replay += 1;
                             }
 
-                            // 实时保存
                             localStorage.setItem(CONFIG.practiceId, JSON.stringify(stats));
                             speakText(englishText);
                         }
@@ -660,11 +953,9 @@
                             window.speechSynthesis.speak(utterance);
                         }
 
-                        // 4. 星级评定与勋章领取系统
                         function calculateStars() {
                             let total = 0, perfect = 0, good = 0;
                             let challengeList = [], perfectList = [];
-
                             for (let key in stats) {
                                 if (key === 'start') continue;
                                 const item = stats[key];
@@ -678,7 +969,6 @@
                                     challengeList.push(key);
                                 }
                             }
-
                             let stars = 1;
                             if (total > 0) {
                                 if (perfect === total) stars = 5;
@@ -686,7 +976,6 @@
                                 else if (challengeList.length < total / 2) stars = 3;
                                 else stars = 2;
                             }
-
                             return { stars, total, perfect, good, challengeList, perfectList };
                         }
 
@@ -694,26 +983,22 @@
                             const result = calculateStars();
                             let report = \`🏆 恭喜 \${CONFIG.childName} 获得今日英语勋章！\\n\\n\`;
                             report += \`成就：今日获得 \${'⭐'.repeat(result.stars)}（\${result.stars}颗星）\\n\\n\`;
-
                             if (result.perfectList.length > 0) {
                                 report += \`📗 红榜 (Perfect)：\\n这些句子你已经完全掌握了，太棒了！\\n\`;
                                 result.perfectList.forEach(s => report += \`  ✅ \${s}\\n\`);
                                 report += '\\n';
                             }
-
                             if (result.challengeList.length > 0) {
                                 report += \`💪 挑战榜 (Challenge)：\\n这 \${result.challengeList.length} 个句子是"明日小怪兽"，建议明天再挑战它们两次！\\n\`;
                                 result.challengeList.forEach(s => report += \`  🔄 \${s}\\n\`);
                                 report += '\\n';
                             }
-
                             report += \`📊 原始数据：\\n\`;
                             for (let key in stats) {
                                 if (key === 'start') continue;
                                 const item = stats[key];
                                 report += \`  \${key} -> 思考\${item.time}秒, 重听\${item.replay}次, 练习\${item.count}次\\n\`;
                             }
-
                             return report;
                         }
 
@@ -742,12 +1027,9 @@
                                 alert("还没有练习记录，请先完成练习哦！");
                                 return;
                             }
-
                             startConfetti();
-
                             document.getElementById('star-display').classList.remove('hidden');
                             document.getElementById('star-rating').textContent = '⭐'.repeat(result.stars);
-
                             const messages = {
                                 5: '🌟 卓越！完美表现，你是英语小天才！',
                                 4: '👏 优秀！表现非常棒，继续加油！',
@@ -756,12 +1038,10 @@
                                 1: '🌱 好的开始！每一次练习都在进步！'
                             };
                             document.getElementById('medal-message').textContent = messages[result.stars] || messages[1];
-
                             const report = generateReport();
                             const today = new Date();
                             const dateStr = \`\${today.getFullYear()}-\${String(today.getMonth()+1).padStart(2,'0')}-\${String(today.getDate()).padStart(2,'0')}\`;
                             const filename = \`\${dateStr}_\${result.stars}星勋章.txt\`;
-
                             const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
                             const url = URL.createObjectURL(blob);
                             const a = document.createElement('a');
@@ -771,7 +1051,6 @@
                             a.click();
                             document.body.removeChild(a);
                             URL.revokeObjectURL(url);
-
                             document.getElementById('star-display').scrollIntoView({ behavior: 'smooth' });
                         }
                     <\/script>
@@ -797,6 +1076,21 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
         }
+    </script>
+
+    <!-- 加载 CDN 库：JSZip、sql.js、fzstd -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "fzstd": "https://cdn.jsdelivr.net/npm/fzstd@0.2.0/+esm"
+        }
+    }
+    </script>
+    <script type="module">
+        import { decompress } from 'fzstd';
+        window.fzstd = { decompress };
     </script>
 </body>
 </html>
