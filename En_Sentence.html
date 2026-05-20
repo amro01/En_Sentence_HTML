@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 v1.1 (给我星星 -v-)</title>
+    <title>练习网页生成器 v1.11 (给我星星 -v-)</title>
     <style>
         /* --- Generator Page Styles --- */
         body { max-width: 600px; margin: 20px auto; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
@@ -201,7 +201,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>练习网页生成器 1.1 (简单的猎手)</h2>
+        <h2>练习网页生成器 1.11 (给我星星 -v-)</h2>
 
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
@@ -231,11 +231,11 @@
         </div>
 
         <div class="card-form" style="background: #e3f2fd; border: 1px solid #2196f3;">
-            <h3>3. 家长管理设置 (影响生成的页面)</h3>
+            <h3>3. 判定标准与评价设置 (决定星星获取难度)</h3>
             <div class="form-group">
                 <label>孩子姓名: <input type="text" id="childName" value="宝贝" style="width:120px;"></label>
-                <label>判定不熟练 (重听次数 > X): <input type="number" id="replayThreshold" value="2" style="width:60px;"></label>
-                <label>判定不熟练 (思考秒数 > X): <input type="number" id="timeThreshold" value="8" style="width:60px;"></label>
+                <label>优秀(五星)重听上限: <input type="number" id="replayThreshold" value="3" style="width:60px;"></label>
+                <label>优秀(五星)思考时限: <input type="number" id="timeThreshold" value="10" style="width:60px;"></label>
             </div>
         </div>
 
@@ -385,8 +385,8 @@
         function generatePage() {
             const date = document.getElementById('practiceDate').value || '未指定日期';
             const childName = document.getElementById('childName').value || '宝贝';
-            const replayThreshold = parseInt(document.getElementById('replayThreshold').value) || 2;
-            const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 8;
+            const replayThreshold = parseInt(document.getElementById('replayThreshold').value) || 3;
+            const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 10;
             const cards = document.querySelectorAll('#cardsContainer .card-item');
             // 生成基于日期和内容的唯一练习ID
             let contentHash = 0;
@@ -662,18 +662,16 @@
 
                         // 4. 星级评定与勋章领取系统
                         function calculateStars() {
-                            let total = 0, perfect = 0, good = 0;
+                            let total = 0, perfect = 0;
                             let challengeList = [], perfectList = [];
 
                             for (let key in stats) {
                                 if (key === 'start') continue;
                                 const item = stats[key];
                                 total++;
-                                if (item.time < 15 && item.replay <= 1) {
+                                if (item.replay <= CONFIG.replayLimit && item.time <= CONFIG.timeLimit) {
                                     perfect++;
                                     perfectList.push(key);
-                                } else if (item.replay <= 2 && item.time < 25) {
-                                    good++;
                                 } else {
                                     challengeList.push(key);
                                 }
@@ -681,18 +679,21 @@
 
                             let stars = 1;
                             if (total > 0) {
-                                if (perfect === total) stars = 5;
-                                else if ((perfect + good) / total >= 0.8) stars = 4;
-                                else if (challengeList.length < total / 2) stars = 3;
-                                else stars = 2;
+                                const perfectRatio = perfect / total;
+                                if (perfectRatio >= 1) stars = 5;
+                                else if (perfectRatio >= 0.8) stars = 4;
+                                else if (perfectRatio >= 0.5) stars = 3;
+                                else if (perfectRatio > 0) stars = 2;
+                                else stars = 1;
                             }
 
-                            return { stars, total, perfect, good, challengeList, perfectList };
+                            return { stars, total, perfect, challengeList, perfectList };
                         }
 
                         function generateReport() {
                             const result = calculateStars();
                             let report = \`🏆 恭喜 \${CONFIG.childName} 获得今日英语勋章！\\n\\n\`;
+                            report += \`基于设定的标准（重听≤\${CONFIG.replayLimit}次，思考≤\${CONFIG.timeLimit}秒），宝贝的表现如下：\\n\\n\`;
                             report += \`成就：今日获得 \${'⭐'.repeat(result.stars)}（\${result.stars}颗星）\\n\\n\`;
 
                             if (result.perfectList.length > 0) {
