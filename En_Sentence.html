@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 v1.11 (给我星星 -v-)</title>
+    <title>练习网页生成器 v1.13 (极致评价 & 重置挑战)</title>
     <style>
         /* --- Generator Page Styles --- */
         body { max-width: 600px; margin: 20px auto; padding: 15px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
@@ -113,6 +113,12 @@
             -ms-user-select: text;
         }
         
+        textarea {
+            min-height: 80px;
+            resize: vertical;
+            font-family: inherit;
+        }
+        
         button {
             background: #4CAF50;
             color: white;
@@ -201,7 +207,7 @@
 </head>
 <body>
     <div class="container">
-        <h2>练习网页生成器 1.11 (给我星星 -v-)</h2>
+        <h2>练习网页生成器 1.13 (极致评价 & 重置挑战)</h2>
 
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
@@ -220,8 +226,8 @@
                         <button type="button" class="sort-btn down" onclick="moveCardDown(this)" title="向下移动">↓</button>
                     </div>
                     <div class="card-content">
-                        <input type="text" placeholder="英文句子">
-                        <input type="text" placeholder="中文翻译">
+                        <textarea placeholder="英文段落 (支持多行及 M:/F: 角色标记)"></textarea>
+                        <textarea placeholder="中文翻译"></textarea>
                         <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
                     </div>
                 </div>
@@ -235,7 +241,8 @@
             <div class="form-group">
                 <label>孩子姓名: <input type="text" id="childName" value="宝贝" style="width:120px;"></label>
                 <label>优秀(五星)重听上限: <input type="number" id="replayThreshold" value="3" style="width:60px;"></label>
-                <label>优秀(五星)思考时限: <input type="number" id="timeThreshold" value="10" style="width:60px;"></label>
+                <label>优秀(五星)思考时限: <input type="number" id="timeThreshold" value="15" style="width:60px;"></label>
+                <label>五星打磨次数: <input type="number" id="masteryThreshold" value="3" style="width:60px;"></label>
             </div>
         </div>
 
@@ -252,20 +259,24 @@
         <h3>使用说明：</h3>
         1. 日期已自动填充为当天，可修改<br>
         2. 点击"添加卡片"按钮创建新练习项<br>
-        3. 每个卡片需填写英文句子和中文翻译<br>
+        3. 每个卡片需填写英文段落和中文翻译，支持多行文本<br>
         4. 可点击卡片右下角的"删除此条"按钮移除不需要的卡片<br>
         5. <strong>排序功能：</strong>点击卡片左侧的↑（上移）或↓（下移）按钮来调整练习顺序<br>
         6. <strong>边界处理：</strong>第一个卡片不能上移，最后一个卡片不能下移（按钮会自动禁用）<br>
         7. <strong>文本编辑：</strong>直接点击输入框可以正常编辑文本，不会影响排序<br>
-        8. <strong>新功能：</strong>点击"添加说明框"可以插入解释性文本。说明框支持基础HTML标签，如 <b>加粗</b> 或 <i>斜体</i>。<br>
+        8. <strong>说明框：</strong>点击"添加说明框"可以插入解释性文本，支持基础HTML标签<br>
         9. 点击"生成练习网页"查看代码预览<br>
         10. 点击"下载HTML文件"保存生成的网页<br>
-        11. <strong>新特性：</strong>生成的页面默认语速为0.7x，并会优先选择 "Microsoft Ava" 等高质量朗读者。<br>
-        12. 在生成的页面中，先看中文，然后点击"显示/朗读英文"按钮来显示英文并听取发音。
+        11. <strong>新特性 - 多角色对话朗读：</strong>在英文段落中使用 <code>M: Hello!</code> 或 <code>Wang Mei：你好</code> 格式，朗读时会自动匹配男声/女声！<br>
+        12. 支持的角色标记：M(男声)、F/Wang Mei/Jenny/Amy等(女声)、Li Ming/Tom/Jack等(男声)<br>
+        13. <strong>能量槽系统：</strong>每完整听完一次朗读，"小耳机"图标点亮一个；满3个后卡片边框变金色，达到"专业播音水准"！<br>
+        14. <strong>五星新逻辑：</strong>思考时间达标 或 打磨次数≥3次，满足其一即可获得五星评价！<br>
+        15. <strong>🌙 六月亮极致评价：</strong>所有句子在时间阈值的50%内完成，且重听次数≤1，即可获得6枚紫金闪耀月亮！<br>
+        16. <strong>🧹 重置挑战：</strong>点击"清空记录"按钮可重置所有练习数据，重新冲击最高评价！
     </div>
 
     <script>
-        // --- Auto-populate Date & Card Management (Unchanged) ---
+        // --- Auto-populate Date & Card Management ---
         (function() {
             function setTodaysDate() { const today = new Date(); const year = today.getFullYear(); const month = String(today.getMonth() + 1).padStart(2, '0'); const day = String(today.getDate()).padStart(2, '0'); document.getElementById('practiceDate').value = `${year}年-${month}月-${day}日`; }
             setTodaysDate();
@@ -287,8 +298,8 @@
                 const cardContent = document.createElement('div');
                 cardContent.className = 'card-content';
                 cardContent.innerHTML = `
-                    <input type="text" placeholder="英文句子">
-                    <input type="text" placeholder="中文翻译">
+                    <textarea placeholder="英文段落 (支持多行及 M:/F: 角色标记)"></textarea>
+                    <textarea placeholder="中文翻译"></textarea>
                     <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
                 `;
                 
@@ -305,7 +316,7 @@
             window.addExplanationBox = function() {
                const newBox = document.createElement('div');
                newBox.className = 'card-item explanation-item';
-               
+                
                // 创建排序按钮
                const sortButtons = document.createElement('div');
                sortButtons.className = 'sort-buttons';
@@ -313,7 +324,7 @@
                    <button type="button" class="sort-btn up" onclick="moveCardUp(this)" title="向上移动">↑</button>
                    <button type="button" class="sort-btn down" onclick="moveCardDown(this)" title="向下移动">↓</button>
                `;
-               
+                
                // 创建内容区域
                const boxContent = document.createElement('div');
                boxContent.className = 'card-content';
@@ -321,13 +332,13 @@
                    <textarea placeholder="在此输入说明文字..."></textarea>
                    <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
                `;
-               
+                
                // 组装说明框
                newBox.appendChild(sortButtons);
                newBox.appendChild(boxContent);
-               
+                
                cardsContainer.appendChild(newBox);
-               
+                
                // 更新所有排序按钮状态
                updateAllSortButtons();
            };
@@ -381,12 +392,13 @@
             }
         })();
 
-        // ---  !!! MODIFIED SECTION: Generate Page and Download !!! ---
+        // --- Generate Page and Download ---
         function generatePage() {
             const date = document.getElementById('practiceDate').value || '未指定日期';
             const childName = document.getElementById('childName').value || '宝贝';
             const replayThreshold = parseInt(document.getElementById('replayThreshold').value) || 3;
             const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 10;
+            const masteryThreshold = parseInt(document.getElementById('masteryThreshold').value) || 3;
             const cards = document.querySelectorAll('#cardsContainer .card-item');
             // 生成基于日期和内容的唯一练习ID
             let contentHash = 0;
@@ -407,34 +419,43 @@
                 if (card.classList.contains('explanation-item')) {
                     const explanationText = card.querySelector('textarea')?.value || '';
                     if (explanationText.trim() !== '') {
-                        // Allow basic HTML and replace newlines with <br> for display
                         const formattedText = explanationText.replace(/\n/g, '<br>');
                         cardsHTML += `<div class="explanation-box">${formattedText}</div>`;
                     }
                 } else {
-                    const englishText = card.querySelector('input[placeholder="英文句子"]')?.value || '';
-                    const chineseText = card.querySelector('input[placeholder="中文翻译"]')?.value || '';
+                    const textareas = card.querySelectorAll('.card-content textarea');
+                    const englishText = textareas.length > 0 ? textareas[0].value : '';
+                    const chineseText = textareas.length > 1 ? textareas[1].value : '';
                     if (englishText.trim() !== '') {
-                        const safeEnglish = englishText.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '"');
+                        // Encode the full English text for safe storage in data attribute
+                        const encodedEnglish = encodeURIComponent(englishText);
+                        // For display, convert newlines to <br>
+                        const englishDisplay = englishText.replace(/\n/g, '<br>');
+                        const chineseDisplay = chineseText.replace(/\n/g, '<br>');
                         const englishElementId = `english-${index}`;
                         cardsHTML += `
-                            <div class="card" data-english="${safeEnglish}">
+                            <div class="card" data-english="${encodedEnglish}">
                                 <div class="content">
-                                    <div class="chinese" onclick="revealChinese(this, '${safeEnglish}')" title="点击看中文">
-                                        ${chineseText}
+                                    <div class="chinese" onclick="revealChinese(this)" title="点击看中文">
+                                        ${chineseDisplay}
                                     </div>
-                                    <div class="english" id="${englishElementId}">${englishText}</div>
+                                    <div class="english" id="${englishElementId}">${englishDisplay}</div>
                                 </div>
-                                <button class="reveal-btn locked" onclick="handleRevealBtn(this, '${englishElementId}', '${safeEnglish}')" disabled>
+                                <button class="reveal-btn locked" onclick="handleRevealBtn(this, '${englishElementId}')" disabled>
                                     显示/朗读英文
                                 </button>
+                                <div class="energy-bar">
+                                    <span class="ear-icon">🎧</span>
+                                    <span class="ear-icon">🎧</span>
+                                    <span class="ear-icon">🎧</span>
+                                </div>
                             </div>
                         `;
                     }
                 }
             });
 
-            // --- MODIFIED TEMPLATE FOR GENERATED PAGE ---
+            // --- UPDATED TEMPLATE FOR GENERATED PAGE (v1.13) ---
             const pageTemplate = `
                 <!DOCTYPE html>
                 <html lang="zh-CN">
@@ -446,14 +467,15 @@
                         body { max-width: 600px; margin: 20px auto; padding: 20px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; line-height: 1.6; }
                         .date-header { text-align: center; margin: 10px 0 20px 0; font-weight: bold; color: #2c3e50; font-size: 1.2em; }
                         .controls { background: #e9ecef; padding: 15px; border-radius: 8px; margin-bottom: 25px; display: flex; flex-wrap: wrap; gap: 15px; }
-                        .control-group { flex: 1; min-width: 200px; }
+                        .control-group { flex: 1; min-width: 150px; }
                         .controls label { display: block; margin-bottom: 5px; font-weight: 500; color: #333; font-size: 0.9em; }
                         .controls select { width: 100%; padding: 8px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95em; box-sizing: border-box; }
-                        .card { background: #ffffff; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 25px; margin: 20px 0; }
+                        .card { background: #ffffff; border-radius: 15px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); padding: 20px 25px; margin: 20px 0; transition: border-color 0.3s, box-shadow 0.3s; border: 2px solid transparent; }
+                        .card.mastered { border-color: #FFD700; box-shadow: 0 0 20px rgba(255,215,0,0.35), 0 2px 10px rgba(0,0,0,0.1); }
                         .explanation-box { background: #eef7ff; border-left: 5px solid #2196F3; padding: 15px 20px; margin: 20px 0; border-radius: 8px; color: #333; line-height: 1.7; font-size: 1.05em; }
                         .explanation-box b, .explanation-box strong { color: #1e88e5; }
                         .content { margin-bottom: 15px; }
-                        .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.4; display: none; }
+                        .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.6; display: none; }
                         .english.visible { display: block; }
                         .chinese {
                             font-size: 1.1em;
@@ -477,12 +499,56 @@
                             cursor: not-allowed;
                             opacity: 0.6;
                         }
+                        .reveal-btn.playing {
+                            background-color: #FF9800 !important;
+                            cursor: wait;
+                            opacity: 0.8;
+                        }
+                        /* 能量槽 - 小耳机图标 */
+                        .energy-bar {
+                            display: flex;
+                            gap: 10px;
+                            margin-top: 12px;
+                            justify-content: center;
+                            align-items: center;
+                        }
+                        .ear-icon {
+                            font-size: 1.6em;
+                            filter: grayscale(1);
+                            opacity: 0.3;
+                            transition: all 0.4s ease;
+                            transform: scale(0.9);
+                        }
+                        .ear-icon.lit {
+                            filter: grayscale(0);
+                            opacity: 1;
+                            transform: scale(1.1);
+                            animation: earBounce 0.4s ease;
+                        }
+                        @keyframes earBounce {
+                            0% { transform: scale(0.9); }
+                            50% { transform: scale(1.3); }
+                            100% { transform: scale(1.1); }
+                        }
                         /* 奖励领取模块 */
                         .reward-area { text-align: center; margin-top: 30px; padding: 20px; }
                         .reward-hint { font-size: 1.1em; color: #e67e22; margin-bottom: 15px; }
                         .reward-btn { background: linear-gradient(135deg, #f093fb, #f5576c); color: white; border: none; padding: 18px 36px; border-radius: 50px; cursor: pointer; font-size: 1.3em; font-weight: bold; transition: transform 0.3s, box-shadow 0.3s; box-shadow: 0 4px 15px rgba(245,87,108,0.4); }
                         .reward-btn:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(245,87,108,0.6); }
                         .reward-btn:active { transform: scale(0.98); }
+                        /* 重置按钮样式 */
+                        .reset-btn {
+                            background: #b0bec5;
+                            color: #37474f;
+                            border: none;
+                            padding: 10px 20px;
+                            border-radius: 25px;
+                            cursor: pointer;
+                            font-size: 0.9em;
+                            margin-top: 10px;
+                            transition: background 0.3s;
+                        }
+                        .reset-btn:hover { background: #90a4ae; }
                         .hidden { display: none !important; }
                         .star-display { margin-top: 20px; padding: 30px; background: linear-gradient(135deg, #fff9e6, #fff3cd); border: 2px solid #ffc107; border-radius: 20px; box-shadow: 0 4px 15px rgba(255,193,7,0.3); animation: fadeInUp 0.6s ease; }
                         .star-rating { font-size: 3em; margin: 15px 0; letter-spacing: 5px; }
@@ -493,16 +559,26 @@
                         .confetti-piece { position: absolute; top: -10px; opacity: 0.9; animation: confettiFall linear forwards; }
                         @keyframes confettiFall { 0% { transform: translateY(-10px) rotate(0deg); opacity: 1; } 100% { transform: translateY(100vh) rotate(720deg); opacity: 0; } }
                         @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
-                        @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } }
+                        /* 6月亮紫色脉冲动画 */
+                        @keyframes pulse {
+                            0% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; }
+                            50% { text-shadow: 0 0 15px #bf5af2, 0 0 25px #bf5af2, 0 0 35px #bf5af2; }
+                            100% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; }
+                        }
+                        .moon-glow {
+                            animation: pulse 2s infinite;
+                            display: inline-block;
+                        }
+                        @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } .ear-icon { font-size: 1.4em; } }
                         @media (max-width: 480px) { body { padding: 10px; } .reveal-btn { width: 100%; } }
                     </style>
                 </head>
                 <body>
                     <div class="date-header">${date}</div>
                     <div class="controls">
-                        <div class="control-group"> <label for="voiceSelectGenerated">选择英语朗读者:</label> <select id="voiceSelectGenerated"> <option value="">加载中...</option> </select> </div>
+                        <div class="control-group"> <label for="maleVoiceSelect">男生/默认声音:</label> <select id="maleVoiceSelect"> <option value="">加载中...</option> </select> </div>
+                        <div class="control-group"> <label for="femaleVoiceSelect">女生声音:</label> <select id="femaleVoiceSelect"> <option value="">加载中...</option> </select> </div>
                         <div class="control-group"> <label for="speedSelectGenerated">选择语速:</label>
-                            <!-- MODIFIED: Default speed is now 0.7x -->
                             <select id="speedSelectGenerated">
                                 <option value="0.7" selected>慢速 (0.7x)</option>
                                 <option value="0.9">稍慢 (0.9x)</option>
@@ -516,6 +592,7 @@
                     <div class="reward-area">
                         <p class="reward-hint">👑 完成所有练习后，点击下方按钮领取今日勋章！</p>
                         <button class="reward-btn" onclick="claimReward()">🎉 完成挑战，领取勋章</button>
+                        <button class="reset-btn" onclick="resetChallenge()">🧹 清空记录，重新挑战最高评价</button>
                         <div id="confetti-container"></div>
                         <div id="star-display" class="star-display hidden">
                             <div class="star-content">
@@ -532,62 +609,120 @@
                             childName: "${childName}",
                             practiceId: "${practiceId}",
                             replayLimit: ${replayThreshold},
-                            timeLimit: ${timeThreshold}
+                            timeLimit: ${timeThreshold},
+                            masteryThreshold: ${masteryThreshold}
                         };
+
+                        // --- 中英教材常见角色性别字典 ---
+                        const MALE_NAMES = ['m', 'boy', 'liming', 'li ming', 'daming', 'danny', 'jack', 'tom', 'bob', 'mike', 'john', 'wu binbin', 'wu yifan', 'zoom', 'peter', 'sam', 'ben', 'max', 'leo', 'nick'];
+                        const FEMALE_NAMES = ['f', 'girl', 'jenny', 'amy', 'lingling','sarah', 'chen jie', 'bai ling', 'mary', 'alice', 'wang mei', 'zip', 'lucy', 'lily', 'emma', 'lisa', 'susan', 'kate', 'ann'];
+
+                        // --- 文本解析引擎: 将带角色标记的文本解析为片段数组 ---
+                        function parseDialogues(text) {
+                            const lines = text.split('\\n');
+                            const segments = [];
+
+                            lines.forEach(line => {
+                                const trimmedLine = line.trim();
+                                if (!trimmedLine) return; // 跳过空行
+
+                                // 匹配模式: 角色名: 说话内容 (兼容中英文冒号和多余空格)
+                                const match = trimmedLine.match(/^([A-Za-z\\s]+|[\\u4e00-\\u9fa5]+)\\s*[:：]\\s*(.*)$/);
+
+                                if (match) {
+                                    const roleName = match[1].trim().toLowerCase();
+                                    const speechText = match[2].trim();
+
+                                    if (!speechText) return; // 跳过只有角色名没有说话内容的行
+
+                                    let gender = 'male'; // 默认男声
+                                    if (FEMALE_NAMES.includes(roleName)) {
+                                        gender = 'female';
+                                    } else if (!MALE_NAMES.includes(roleName)) {
+                                        // 如果都不在字典中，保持默认男声
+                                    }
+
+                                    segments.push({ text: speechText, gender: gender });
+                                } else {
+                                    // 没有角色标记 - 使用默认（男声）朗读
+                                    segments.push({ text: trimmedLine, gender: 'male' });
+                                }
+                            });
+
+                            return segments;
+                        }
 
                         // 1. 初始化统计数据
                         let stats = JSON.parse(localStorage.getItem(CONFIG.practiceId) || '{}');
 
-                        const voiceSelect = document.getElementById('voiceSelectGenerated');
+                        const maleVoiceSelect = document.getElementById('maleVoiceSelect');
+                        const femaleVoiceSelect = document.getElementById('femaleVoiceSelect');
                         const speedSelect = document.getElementById('speedSelectGenerated');
                         let availableVoices = [];
 
-                        // --- MODIFIED: Smarter voice selection logic ---
+                        // --- 智能匹配声音并填充两个下拉菜单 ---
                         function populateVoiceList() {
                             if (!('speechSynthesis' in window)) {
-                                voiceSelect.innerHTML = '<option value="">浏览器不支持语音</option>';
+                                maleVoiceSelect.innerHTML = '<option value="">浏览器不支持语音</option>';
+                                femaleVoiceSelect.innerHTML = '<option value="">浏览器不支持语音</option>';
                                 return;
                             }
                             availableVoices = speechSynthesis.getVoices().filter(voice => voice.lang.startsWith('en-'));
                             if (availableVoices.length === 0) {
-                                voiceSelect.innerHTML = speechSynthesis.getVoices().length === 0 ? '<option value="">等待语音加载...</option>' : '<option value="">无可用英文语音</option>';
+                                const msg = speechSynthesis.getVoices().length === 0 ? '等待语音加载...' : '无可用英文语音';
+                                maleVoiceSelect.innerHTML = '<option value="">' + msg + '</option>';
+                                femaleVoiceSelect.innerHTML = '<option value="">' + msg + '</option>';
                                 return;
                             }
-                            voiceSelect.innerHTML = ''; // Clear existing options
 
-                            // 1. Populate the dropdown with all available English voices
+                            // 清空并填充两个下拉菜单
+                            maleVoiceSelect.innerHTML = '';
+                            femaleVoiceSelect.innerHTML = '';
+
                             availableVoices.forEach(voice => {
-                                const option = document.createElement('option');
-                                option.textContent = \`\${voice.name} (\${voice.lang})\`;
-                                option.value = voice.name;
-                                voiceSelect.appendChild(option);
+                                const opt1 = document.createElement('option');
+                                opt1.textContent = voice.name + ' (' + voice.lang + ')';
+                                opt1.value = voice.name;
+                                maleVoiceSelect.appendChild(opt1);
+
+                                const opt2 = document.createElement('option');
+                                opt2.textContent = voice.name + ' (' + voice.lang + ')';
+                                opt2.value = voice.name;
+                                femaleVoiceSelect.appendChild(opt2);
                             });
 
-                            // 2. Determine the best default voice with a priority system
-                            const preferredVoiceName = 'Microsoft Ava Online (Natural)';
-                            let selectedIndex = -1;
-
-                            // Priority 1: Find "Microsoft Ava Online (Natural)"
-                            selectedIndex = availableVoices.findIndex(voice => voice.name === preferredVoiceName);
-
-                            // Priority 2: If not found, find any other "Natural" Microsoft voice
-                            if (selectedIndex === -1) {
-                                selectedIndex = availableVoices.findIndex(voice => voice.name.includes('Microsoft') && voice.name.includes('Natural'));
+                            // 智能选择默认男声 (优先匹配常见男声标识)
+                            const maleKeywords = ['guy', 'christopher', 'eric', 'brian', 'david', 'james', 'microsoft mark', 'microsoft david', 'google uk english male'];
+                            let maleIdx = -1;
+                            for (const kw of maleKeywords) {
+                                maleIdx = availableVoices.findIndex(v => v.name.toLowerCase().includes(kw));
+                                if (maleIdx >= 0) break;
+                            }
+                            if (maleIdx === -1) {
+                                // 优先选择 Microsoft Natural 声音
+                                maleIdx = availableVoices.findIndex(v => v.name.includes('Microsoft') && v.name.includes('Natural'));
+                            }
+                            if (maleIdx === -1) {
+                                maleIdx = availableVoices.findIndex(v => v.lang === 'en-US');
+                            }
+                            if (maleIdx === -1) maleIdx = 0;
+                            if (maleIdx >= 0 && maleVoiceSelect.options.length > maleIdx) {
+                                maleVoiceSelect.options[maleIdx].selected = true;
                             }
 
-                            // Priority 3: If still not found, find any "en-US" voice
-                            if (selectedIndex === -1) {
-                                selectedIndex = availableVoices.findIndex(voice => voice.lang === 'en-US');
+                            // 智能选择默认女声 (优先匹配常见女声标识)
+                            const femaleKeywords = ['ava', 'jenny', 'aria', 'michelle', 'sara', 'samantha', 'victoria', 'kate', 'zira', 'hazel', 'heather', 'microsoft ava', 'google uk english female'];
+                            let femaleIdx = -1;
+                            for (const kw of femaleKeywords) {
+                                femaleIdx = availableVoices.findIndex(v => v.name.toLowerCase().includes(kw));
+                                if (femaleIdx >= 0) break;
                             }
-                            
-                            // Priority 4: If all else fails, use the first available voice
-                            if (selectedIndex === -1) {
-                                selectedIndex = 0;
+                            if (femaleIdx === -1) {
+                                femaleIdx = availableVoices.findIndex(v => v.lang === 'en-US');
                             }
-
-                            // 3. Set the selected voice in the dropdown
-                            if (selectedIndex > -1 && voiceSelect.options.length > selectedIndex) {
-                                voiceSelect.options[selectedIndex].selected = true;
+                            if (femaleIdx === -1) femaleIdx = Math.min(0, availableVoices.length - 1);
+                            if (femaleIdx >= 0 && femaleVoiceSelect.options.length > femaleIdx) {
+                                femaleVoiceSelect.options[femaleIdx].selected = true;
                             }
                         }
 
@@ -597,7 +732,7 @@
                         }
 
                         // 2. 显示中文并开始计时（解锁按钮）
-                        function revealChinese(el, englishText) {
+                        function revealChinese(el) {
                             if (!el.classList.contains('revealed')) {
                                 el.classList.add('revealed');
                                 // 激活对应的按钮
@@ -605,16 +740,38 @@
                                 btn.classList.remove('locked');
                                 btn.disabled = false;
 
+                                // 获取英文文本
+                                const card = el.closest('.card');
+                                const englishText = decodeURIComponent(card.dataset.english);
+
                                 // 记录开始思考的时间点
                                 if (!stats[englishText]) {
-                                    stats[englishText] = { replay: 0, time: 0, count: 0 };
+                                    stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
                                 }
                                 stats[englishText].start = Date.now();
                             }
                         }
 
+                        // --- 更新能量槽显示 ---
+                        function updateEnergyBar(energyBar, masteryCount, cardElement) {
+                            const ears = energyBar.querySelectorAll('.ear-icon');
+                            const count = Math.min(masteryCount, 3);
+                            ears.forEach((ear, i) => {
+                                if (i < count) {
+                                    ear.classList.add('lit');
+                                } else {
+                                    ear.classList.remove('lit');
+                                }
+                            });
+                            if (masteryCount >= CONFIG.masteryThreshold) {
+                                cardElement.classList.add('mastered');
+                            } else {
+                                cardElement.classList.remove('mastered');
+                            }
+                        }
+
                         // 3. 处理显示/朗读按钮
-                        function handleRevealBtn(btn, elementId, englishText) {
+                        function handleRevealBtn(btn, elementId) {
                             // 安全检查：必须先点击中文
                             const chineseDiv = btn.parentElement.querySelector('.chinese');
                             if (!chineseDiv.classList.contains('revealed')) {
@@ -622,6 +779,8 @@
                                 return;
                             }
 
+                            const card = btn.closest('.card');
+                            const englishText = decodeURIComponent(card.dataset.english);
                             const englishDiv = document.getElementById(elementId);
 
                             if (!englishDiv.classList.contains('visible')) {
@@ -634,85 +793,231 @@
                                 const duration = Math.floor((Date.now() - stats[englishText].start) / 1000);
 
                                 // 更新统计 (取最长的一次思考时间)
-                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
+                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
                                 stats[englishText].time = Math.max(stats[englishText].time, duration);
                                 stats[englishText].count += 1; // 总练习次数
+
+                                // 首次朗读：用 onended 播放逻辑
+                                localStorage.setItem(CONFIG.practiceId, JSON.stringify(stats));
+                                speakTextWithTracking(englishText, card, btn);
                             } else {
-                                // 【重复点击：朗读次数+1】
-                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0 };
-                                stats[englishText].replay += 1;
+                                // 【重复点击：朗读】
+                                if (btn.dataset.playing === 'true') {
+                                    alert("正在朗读中，请稍候...");
+                                    return;
+                                }
+                                speakTextWithTracking(englishText, card, btn);
                             }
-
-                            // 实时保存
-                            localStorage.setItem(CONFIG.practiceId, JSON.stringify(stats));
-                            speakText(englishText);
                         }
 
-                        function speakText(text) {
+                        // --- 带播放追踪的朗读函数 (使用 onstart/onended) ---
+                        function speakTextWithTracking(text, cardElement, btnElement) {
                             if (!('speechSynthesis' in window)) { alert('您的浏览器不支持语音合成功能'); return; }
-                            const utterance = new SpeechSynthesisUtterance(text);
-                            const selectedVoiceName = voiceSelect.value;
-                            const targetVoice = selectedVoiceName ? availableVoices.find(voice => voice.name === selectedVoiceName) : null;
-                            if (targetVoice) { utterance.voice = targetVoice; utterance.lang = targetVoice.lang; }
-                            else { utterance.lang = 'en-US'; }
-                            utterance.rate = parseFloat(speedSelect.value) || 1.0;
+
+                            const segments = parseDialogues(text);
+                            if (segments.length === 0) return;
+
+                            // 取消当前朗读
                             window.speechSynthesis.cancel();
-                            window.speechSynthesis.speak(utterance);
+
+                            const maleVoiceName = maleVoiceSelect.value;
+                            const femaleVoiceName = femaleVoiceSelect.value;
+                            const rate = parseFloat(speedSelect.value) || 0.7;
+
+                            // 设置播放状态
+                            btnElement.dataset.playing = 'true';
+                            btnElement.disabled = true;
+                            btnElement.classList.add('playing');
+                            btnElement.textContent = '🔊 播放中...';
+
+                            const energyBar = cardElement.querySelector('.energy-bar');
+                            const englishText = decodeURIComponent(cardElement.dataset.english);
+
+                            segments.forEach((segment, index) => {
+                                const utterance = new SpeechSynthesisUtterance(segment.text);
+
+                                // 根据性别选择合适的语音
+                                let targetVoice = null;
+                                if (segment.gender === 'female' && femaleVoiceName) {
+                                    targetVoice = availableVoices.find(v => v.name === femaleVoiceName);
+                                } else if (maleVoiceName) {
+                                    targetVoice = availableVoices.find(v => v.name === maleVoiceName);
+                                }
+
+                                if (targetVoice) {
+                                    utterance.voice = targetVoice;
+                                    utterance.lang = targetVoice.lang;
+                                } else {
+                                    utterance.lang = 'en-US';
+                                }
+                                utterance.rate = rate;
+
+                                // 第一段开始：禁用按钮
+                                if (index === 0) {
+                                    utterance.onstart = function() {
+                                        btnElement.disabled = true;
+                                        btnElement.textContent = '🔊 播放中...';
+                                        btnElement.classList.add('playing');
+                                        btnElement.dataset.playing = 'true';
+                                    };
+                                }
+
+                                // 最后一段结束：恢复按钮 + 计数
+                                if (index === segments.length - 1) {
+                                    utterance.onend = function() {
+                                        // 恢复按钮状态
+                                        btnElement.disabled = false;
+                                        btnElement.textContent = '再次朗读';
+                                        btnElement.dataset.playing = 'false';
+                                        btnElement.classList.remove('playing');
+
+                                        // 确保统计数据存在
+                                        if (!stats[englishText]) {
+                                            stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
+                                        }
+
+                                        // 完整播放结束，增加 replay 计数和 mastery_count
+                                        stats[englishText].replay += 1;
+                                        stats[englishText].mastery_count += 1;
+
+                                        // 更新能量槽
+                                        if (energyBar) {
+                                            updateEnergyBar(energyBar, stats[englishText].mastery_count, cardElement);
+                                        }
+
+                                        // 保存到 localStorage
+                                        localStorage.setItem(CONFIG.practiceId, JSON.stringify(stats));
+                                    };
+
+                                    // 错误处理：如果播放出错也恢复
+                                    utterance.onerror = function() {
+                                        btnElement.disabled = false;
+                                        btnElement.textContent = '再次朗读';
+                                        btnElement.dataset.playing = 'false';
+                                        btnElement.classList.remove('playing');
+                                    };
+                                }
+
+                                window.speechSynthesis.speak(utterance);
+                            });
                         }
 
-                        // 4. 星级评定与勋章领取系统
+                        // 4. 星级评定 — 极致评价逻辑 (The Mastery Scale)
                         function calculateStars() {
                             let total = 0, perfect = 0;
-                            let challengeList = [], perfectList = [];
+                            let masteredList = [], polishingList = [];
+                            let maxReplayCount = 0;
+                            let goldenEarSentence = '';
+                            let maxReplay = 0;
+                            let maxTime = 0;
+                            let allWithinHalfTime = true;
+                            let allReplayZero = true;
 
                             for (let key in stats) {
                                 if (key === 'start') continue;
                                 const item = stats[key];
                                 total++;
-                                if (item.replay <= CONFIG.replayLimit && item.time <= CONFIG.timeLimit) {
+
+                                // 记录最大值
+                                maxTime = Math.max(maxTime, item.time);
+                                maxReplay = Math.max(maxReplay, item.replay);
+
+                                // 检查是否所有句子都在50%时间内完成
+                                if (item.time > CONFIG.timeLimit * 0.5) {
+                                    allWithinHalfTime = false;
+                                }
+
+                                // 检查是否有任何重听
+                                if (item.replay > 0) {
+                                    allReplayZero = false;
+                                }
+
+                                // 原有优秀逻辑：反应时间 <= 阈值 或者 打磨次数 >= masteryThreshold
+                                if (item.time <= CONFIG.timeLimit || item.mastery_count >= CONFIG.masteryThreshold) {
                                     perfect++;
-                                    perfectList.push(key);
+                                    masteredList.push(key);
                                 } else {
-                                    challengeList.push(key);
+                                    polishingList.push(key);
+                                }
+
+                                // 统计金耳朵 (听取次数最多的句子)
+                                if (item.replay > maxReplayCount) {
+                                    maxReplayCount = item.replay;
+                                    goldenEarSentence = key;
                                 }
                             }
 
                             let stars = 1;
                             if (total > 0) {
-                                const perfectRatio = perfect / total;
-                                if (perfectRatio >= 1) stars = 5;
-                                else if (perfectRatio >= 0.8) stars = 4;
-                                else if (perfectRatio >= 0.5) stars = 3;
-                                else if (perfectRatio > 0) stars = 2;
-                                else stars = 1;
+                                // 【🌙 6枚紫金闪耀月亮】极速大师：
+                                // 所有句子均在 timeThreshold 的 50% 时间内完成，且重听次数 ≤ 1
+                                if (allWithinHalfTime && maxReplay <= 1 && total === Object.keys(stats).filter(k => k !== 'start').length) {
+                                    stars = 6;
+                                }
+                                // 【⭐ 5颗黄金星】完美专注：
+                                // 所有句子在规定时间内完成，且重听次数为 0
+                                else if (perfect === total && allReplayZero) {
+                                    stars = 5;
+                                }
+                                // 【⭐ 4颗星】良好努力：
+                                // 虽然在规定时间内完成，但有句子进行了重听
+                                else if (perfect === total && !allReplayZero) {
+                                    stars = 4;
+                                }
+                                else {
+                                    const perfectRatio = perfect / total;
+                                    if (perfectRatio >= 0.8) stars = 4;
+                                    else if (perfectRatio >= 0.5) stars = 3;
+                                    else if (perfectRatio > 0) stars = 2;
+                                    else stars = 1;
+                                }
                             }
 
-                            return { stars, total, perfect, challengeList, perfectList };
+                            return { stars, total, perfect, masteredList, polishingList, goldenEarSentence, maxReplayCount, maxReplay };
                         }
 
                         function generateReport() {
                             const result = calculateStars();
-                            let report = \`🏆 恭喜 \${CONFIG.childName} 获得今日英语勋章！\\n\\n\`;
-                            report += \`基于设定的标准（重听≤\${CONFIG.replayLimit}次，思考≤\${CONFIG.timeLimit}秒），宝贝的表现如下：\\n\\n\`;
-                            report += \`成就：今日获得 \${'⭐'.repeat(result.stars)}（\${result.stars}颗星）\\n\\n\`;
+                            let report = '🏆 恭喜 ' + CONFIG.childName + ' 获得今日英语勋章！\\n\\n';
+                            report += '基于设定的标准（重听≤' + CONFIG.replayLimit + '次，思考≤' + CONFIG.timeLimit + '秒 或 打磨次数≥' + CONFIG.masteryThreshold + '次），宝贝的表现如下：\\n\\n';
 
-                            if (result.perfectList.length > 0) {
-                                report += \`📗 红榜 (Perfect)：\\n这些句子你已经完全掌握了，太棒了！\\n\`;
-                                result.perfectList.forEach(s => report += \`  ✅ \${s}\\n\`);
+                            if (result.stars === 6) {
+                                report += '🌙 至高荣誉：紫金闪耀 6 月亮！（所有句子在半速时间内完成，重听≤1次）\\n\\n';
+                            } else {
+                                report += '成就：今日获得 ' + '⭐'.repeat(result.stars) + '（' + result.stars + '颗星）\\n\\n';
+                            }
+
+                            if (result.masteredList.length > 0) {
+                                report += '📗 已点亮的句子（掌握）：\\n这些句子你已经完全掌握了，太棒了！\\n';
+                                result.masteredList.forEach(s => {
+                                    const item = stats[s];
+                                    // 判断是否通过打磨次数获得的五星评价
+                                    const isMasteryBased = item.time > CONFIG.timeLimit && item.mastery_count >= CONFIG.masteryThreshold;
+                                    const label = isMasteryBased ? ' 🎯 地道发音大师' : ' ✅ 优秀';
+                                    report += '  ' + s + label + '\\n';
+                                });
                                 report += '\\n';
                             }
 
-                            if (result.challengeList.length > 0) {
-                                report += \`💪 挑战榜 (Challenge)：\\n这 \${result.challengeList.length} 个句子是"明日小怪兽"，建议明天再挑战它们两次！\\n\`;
-                                result.challengeList.forEach(s => report += \`  🔄 \${s}\\n\`);
+                            if (result.polishingList.length > 0) {
+                                report += '💪 正在打磨的句子（继续精进）：\\n这 ' + result.polishingList.length + ' 个句子是"明日小怪兽"，建议明天再挑战它们两次！\\n';
+                                result.polishingList.forEach(s => report += '  🔄 ' + s + '\\n');
                                 report += '\\n';
                             }
 
-                            report += \`📊 原始数据：\\n\`;
+                            // 金耳朵成就
+                            if (result.maxReplayCount > 0) {
+                                report += '👂 特别奖项 - 金耳朵成就 🥇\\n';
+                                report += '颁发给听取次数最多的句子：\\n';
+                                report += '  🏅 "' + result.goldenEarSentence + '" 共听取 ' + result.maxReplayCount + ' 次\\n';
+                                report += '\\n';
+                            }
+
+                            report += '📊 原始数据：\\n';
                             for (let key in stats) {
                                 if (key === 'start') continue;
                                 const item = stats[key];
-                                report += \`  \${key} -> 思考\${item.time}秒, 重听\${item.replay}次, 练习\${item.count}次\\n\`;
+                                report += '  ' + key + ' -> 思考' + item.time + '秒, 重听' + item.replay + '次, 练习' + item.count + '次, 打磨' + (item.mastery_count || 0) + '次\\n';
                             }
 
                             return report;
@@ -737,6 +1042,21 @@
                             setTimeout(() => { container.innerHTML = ''; }, 4000);
                         }
 
+                        // --- 从 localStorage 恢复能量槽状态 ---
+                        function restoreEnergyBars() {
+                            const cards = document.querySelectorAll('.card');
+                            cards.forEach(card => {
+                                const englishText = decodeURIComponent(card.dataset.english);
+                                const item = stats[englishText];
+                                if (item && item.mastery_count > 0) {
+                                    const energyBar = card.querySelector('.energy-bar');
+                                    if (energyBar) {
+                                        updateEnergyBar(energyBar, item.mastery_count, card);
+                                    }
+                                }
+                            });
+                        }
+
                         function claimReward() {
                             const result = calculateStars();
                             if (result.total === 0) {
@@ -747,21 +1067,52 @@
                             startConfetti();
 
                             document.getElementById('star-display').classList.remove('hidden');
-                            document.getElementById('star-rating').textContent = '⭐'.repeat(result.stars);
+                            
+                            // 6月亮：显示🌙图标（非⭐）
+                            const starRatingEl = document.getElementById('star-rating');
+                            if (result.stars === 6) {
+                                starRatingEl.innerHTML = '<span class="moon-glow">🌙🌙🌙🌙🌙🌙</span>';
+                            } else {
+                                starRatingEl.textContent = '⭐'.repeat(result.stars);
+                            }
 
                             const messages = {
+                                6: '🚀 超越时空的极速大师！你已经形成了英语反射弧！',
                                 5: '🌟 卓越！完美表现，你是英语小天才！',
                                 4: '👏 优秀！表现非常棒，继续加油！',
                                 3: '💪 加油！多练几次就会更熟练！',
                                 2: '👍 不错！明天再挑战一次吧！',
                                 1: '🌱 好的开始！每一次练习都在进步！'
                             };
-                            document.getElementById('medal-message').textContent = messages[result.stars] || messages[1];
+                            // 检查是否有通过打磨次数获得的五星评价
+                            let hasMasteryBased = false;
+                            if (result.stars === 5) {
+                                for (let key in stats) {
+                                    if (key === 'start') continue;
+                                    const item = stats[key];
+                                    if (item.time > CONFIG.timeLimit && item.mastery_count >= CONFIG.masteryThreshold) {
+                                        hasMasteryBased = true;
+                                        break;
+                                    }
+                                }
+                            }
+                            let msg = messages[result.stars] || messages[1];
+                            if (result.stars === 6) {
+                                // 6月亮使用专用文案
+                            } else if (hasMasteryBased && result.stars === 5) {
+                                msg = '🌟 地道发音大师！坚持打磨，发音已臻化境！';
+                            }
+                            document.getElementById('medal-message').textContent = msg;
 
                             const report = generateReport();
                             const today = new Date();
-                            const dateStr = \`\${today.getFullYear()}-\${String(today.getMonth()+1).padStart(2,'0')}-\${String(today.getDate()).padStart(2,'0')}\`;
-                            const filename = \`\${dateStr}_\${result.stars}星勋章.txt\`;
+                            const dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
+                            let filename;
+                            if (result.stars === 6) {
+                                filename = dateStr + '_6月极速大师勋章.txt';
+                            } else {
+                                filename = dateStr + '_' + result.stars + '星勋章.txt';
+                            }
 
                             const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
                             const url = URL.createObjectURL(blob);
@@ -774,6 +1125,23 @@
                             URL.revokeObjectURL(url);
 
                             document.getElementById('star-display').scrollIntoView({ behavior: 'smooth' });
+                        }
+
+                        // --- 重置挑战功能 ---
+                        function resetChallenge() {
+                            if (confirm('宝贝，准备好清空记录，重新冲击 6 枚月亮了吗？')) {
+                                localStorage.removeItem(CONFIG.practiceId);
+                                location.reload();
+                            }
+                        }
+
+                        // 页面加载完成后恢复能量槽
+                        document.addEventListener('DOMContentLoaded', restoreEnergyBars);
+                        // 如果 DOM 已经加载完毕，立即执行
+                        if (document.readyState === 'loading') {
+                            document.addEventListener('DOMContentLoaded', restoreEnergyBars);
+                        } else {
+                            restoreEnergyBars();
                         }
                     <\/script>
                 </body>
