@@ -13,9 +13,18 @@ export const GENERATED_CSS = `
                 .content { margin-bottom: 15px; }
                 .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.6; display: none; cursor: default; position: relative; }
                 .english.visible { display: block; }
-                .english.detectable { cursor: pointer; }
+                .english.detectable { cursor: default; }
                 .english.detectable:hover { background: #f3e8ff; border-radius: 4px; }
-                .detective-icon { position: absolute; bottom: 2px; right: 2px; font-size: 0.7em; opacity: 0.2; pointer-events: none; transition: opacity 0.3s; }
+                .detective-icon { position: absolute; bottom: 2px; right: 2px; font-size: 0.7em; opacity: 0.2; transition: opacity 0.3s; }
+                .detective-click-target {
+                    cursor: pointer !important;
+                    transition: transform 0.2s ease;
+                    display: inline-block;
+                    pointer-events: auto !important;
+                }
+                .detective-click-target:hover {
+                    transform: scale(1.2);
+                }
                 .english:hover .detective-icon { opacity: 0.5; }
                 .word-span {
                     display: inline-block;
@@ -31,6 +40,34 @@ export const GENERATED_CSS = `
                     background-color: rgba(255, 235, 59, 0.4);
                     color: #0d47a1;
                 }
+                 del .word-span {
+                     pointer-events: none !important;
+                     cursor: default !important;
+                     background-color: transparent !important;
+                     color: inherit !important;
+                     text-decoration: line-through !important;
+                 }
+                  .wrong-word {
+                      color: #d32f2f !important;
+                      text-decoration: line-through !important;
+                      pointer-events: none !important;
+                  }
+                  .wrong-word .word-span {
+                      pointer-events: none !important;
+                      cursor: default !important;
+                      background-color: transparent !important;
+                      color: inherit !important;
+                      text-decoration: line-through !important;
+                  }
+                  .correct-word {
+                      color: #1565c0 !important;
+                      pointer-events: auto !important;
+                  }
+                  .correct-word .word-span {
+                      pointer-events: auto !important;
+                      cursor: pointer !important;
+                      color: inherit !important;
+                  }
                 .chinese {
                     font-size: 1.1em;
                     color: #34495e;

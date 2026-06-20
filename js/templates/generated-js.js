@@ -370,13 +370,23 @@ const detSummaryEl = document.getElementById('detective-summary');
                             // Not yet searched: make detectable
                             englishDiv.classList.add('detectable');
                             const icon = document.createElement('span');
-                            icon.className = 'detective-icon';
+                            icon.className = 'detective-icon detective-click-target';
                             icon.textContent = '🔍';
                             englishDiv.appendChild(icon);
 
                             englishDiv.addEventListener('click', function(e) {
                                 if (!this.classList.contains('visible')) return;
-                                reportTrap(card);
+                                // 只有点击侦探图标本身才触发举报
+                                const detectiveTarget = e.target.closest('.detective-click-target');
+                                if (!detectiveTarget) return;
+                                e.stopPropagation();
+                                e.preventDefault();
+                                // 向上找到带有 dataset.cardIndex 的父级卡片容器
+                                const parentCard = detectiveTarget.closest('.card');
+                                const cardIndex = parentCard ? parseInt(parentCard.dataset.cardIndex) : null;
+                                if (cardIndex !== null && !isNaN(cardIndex)) {
+                                    reportTrap(parentCard);
+                                }
                             });
                         }
                     });
@@ -602,11 +612,17 @@ const detSummaryEl = document.getElementById('detective-summary');
                                 }
                             });
                             element.replaceChild(fragment, node);
-                        } else if (node.nodeType === Node.ELEMENT_NODE) {
-                            if (!node.classList.contains('word-span')) {
-                                wrapTextNodesInElement(node);
-                            }
-                        }
+                          } else if (node.nodeType === Node.ELEMENT_NODE) {
+                               // 只拦截红色错误词（DEL 标签 / wrong-word），放行蓝色正确词（correct-word）
+                               const isWrongElement = node.tagName === 'DEL' ||
+                                                     node.classList.contains('wrong-word');
+                               if (isWrongElement) {
+                                   return; // 跳过红色错误文本，不分词、不高亮、不点读
+                               }
+                              if (!node.classList.contains('word-span')) {
+                                  wrapTextNodesInElement(node);
+                              }
+                          }
                     });
                 }
 
@@ -640,6 +656,9 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                 // --- Global click delegate for word-span clicks + detective mode compatibility ---
                 document.addEventListener('click', function(e) {
+                    // 如果点击的是侦探图标，直接退出，不触发任何单词点读
+                    if (e.target.closest('.detective-click-target')) return;
+
                     const wordSpan = e.target.closest('.word-span');
                     if (wordSpan) {
                         const word = wordSpan.dataset.word;
