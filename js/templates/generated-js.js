@@ -588,14 +588,14 @@ const detSummaryEl = document.getElementById('detective-summary');
                             if (text.trim() === '') return;
 
                             const fragment = document.createDocumentFragment();
-                            const parts = text.split(/(\s+)/);
+                            const parts = text.split(/(\\s+)/);
                             parts.forEach(part => {
                                 if (part.trim() === '') {
                                     fragment.appendChild(document.createTextNode(part));
                                 } else {
                                     const span = document.createElement('span');
                                     span.className = 'word-span';
-                                    const cleanWord = part.replace(/[.,\/#!$%\^&\*;:{}=\-_~()?"'’]/g, "").trim();
+                                    const cleanWord = part.replace(/[.,\\/#\\!$%\\^&\\*;:{}_~()?"'’\\-]/g, "").trim();
                                     span.dataset.word = cleanWord;
                                     span.textContent = part;
                                     fragment.appendChild(span);
