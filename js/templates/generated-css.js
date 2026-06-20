@@ -17,6 +17,20 @@ export const GENERATED_CSS = `
                 .english.detectable:hover { background: #f3e8ff; border-radius: 4px; }
                 .detective-icon { position: absolute; bottom: 2px; right: 2px; font-size: 0.7em; opacity: 0.2; pointer-events: none; transition: opacity 0.3s; }
                 .english:hover .detective-icon { opacity: 0.5; }
+                .word-span {
+                    display: inline-block;
+                    cursor: pointer;
+                    transition: background-color 0.2s ease, color 0.2s ease;
+                    border-radius: 3px;
+                    padding: 0 2px;
+                    position: relative;
+                    z-index: 10;
+                    pointer-events: auto !important;
+                }
+                .word-span:hover {
+                    background-color: rgba(255, 235, 59, 0.4);
+                    color: #0d47a1;
+                }
                 .chinese {
                     font-size: 1.1em;
                     color: #34495e;

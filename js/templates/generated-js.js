@@ -137,6 +137,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                             card.classList.add('trap-caught');
                             const diffHtml = computeDiff(trapData.english, trapData.correct);
                             englishDiv.innerHTML = diffHtml;
+                            wrapTextNodesInElement(englishDiv);
                             const energyBar = card.querySelector('.energy-bar');
                             if (energyBar) updateEnergyBar(energyBar, 0, card);
                         }
@@ -577,6 +578,82 @@ const detSummaryEl = document.getElementById('detective-summary');
                     });
                 }
 
+                // --- Wrap text nodes into clickable word spans ---
+                function wrapTextNodesInElement(element) {
+                    if (!element) return;
+                    const childNodes = Array.from(element.childNodes);
+                    childNodes.forEach(node => {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const text = node.textContent;
+                            if (text.trim() === '') return;
+
+                            const fragment = document.createDocumentFragment();
+                            const parts = text.split(/(\s+)/);
+                            parts.forEach(part => {
+                                if (part.trim() === '') {
+                                    fragment.appendChild(document.createTextNode(part));
+                                } else {
+                                    const span = document.createElement('span');
+                                    span.className = 'word-span';
+                                    const cleanWord = part.replace(/[.,\/#!$%\^&\*;:{}=\-_~()?"'’]/g, "").trim();
+                                    span.dataset.word = cleanWord;
+                                    span.textContent = part;
+                                    fragment.appendChild(span);
+                                }
+                            });
+                            element.replaceChild(fragment, node);
+                        } else if (node.nodeType === Node.ELEMENT_NODE) {
+                            if (!node.classList.contains('word-span')) {
+                                wrapTextNodesInElement(node);
+                            }
+                        }
+                    });
+                }
+
+                // --- Speak a single word using current voice settings ---
+                function speakSingleWord(word) {
+                    if (!('speechSynthesis' in window)) return;
+                    window.speechSynthesis.cancel();
+
+                    const utterance = new SpeechSynthesisUtterance(word);
+                    utterance.lang = 'en-US';
+
+                    const femaleVoiceSelect = document.getElementById('femaleVoiceSelect');
+                    const speedSelect = document.getElementById('speedSelectGenerated');
+
+                    if (femaleVoiceSelect && femaleVoiceSelect.value) {
+                        const voices = window.speechSynthesis.getVoices();
+                        const selectedVoice = voices.find(v => v.name === femaleVoiceSelect.value);
+                        if (selectedVoice) {
+                            utterance.voice = selectedVoice;
+                        }
+                    }
+
+                    if (speedSelect) {
+                        utterance.rate = parseFloat(speedSelect.value) || 0.7;
+                    } else {
+                        utterance.rate = 0.7;
+                    }
+
+                    window.speechSynthesis.speak(utterance);
+                }
+
+                // --- Global click delegate for word-span clicks + detective mode compatibility ---
+                document.addEventListener('click', function(e) {
+                    const wordSpan = e.target.closest('.word-span');
+                    if (wordSpan) {
+                        const word = wordSpan.dataset.word;
+                        if (word) {
+                            speakSingleWord(word);
+                        }
+
+                        const englishDiv = wordSpan.closest('.english');
+                        if (!englishDiv || !englishDiv.classList.contains('detectable')) {
+                            e.stopPropagation();
+                        }
+                    }
+                });
+
                 // --- Create persistent click-to-dismiss overlay ---
                 function showPersistentHint(mainText) {
                     const overlay = document.createElement('div');
@@ -866,6 +943,9 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                     // Step 2: Restore all UI state from appState
                     refreshPersist();
+
+                    // Step 2.5: Wrap words for hover + click-to-pronounce
+                    document.querySelectorAll('.english').forEach(el => wrapTextNodesInElement(el));
 
                     // Step 3: Init detective mode (chance bar, icons, click handlers)
                     initDetectiveMode();
