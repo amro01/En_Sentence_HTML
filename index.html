@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>练习网页生成器 v2.11 dev </title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h2>练习网页生成器 v2.11 dev </h2>
+
+        <div class="card-form">
+            <h3>1. 设置基本信息</h3>
+            <div class="form-group">
+                <label for="practiceDate">日期：</label>
+                <input type="text" id="practiceDate" placeholder="例：YYYY年-MM月-DD日">
+            </div>
+        </div>
+
+        <div class="card-form">
+            <h3>2. 添加练习卡片 (可排序调整)</h3>
+            <div id="cardsContainer">
+                <div class="card-item">
+                    <div class="sort-buttons">
+                        <button type="button" class="sort-btn up" onclick="moveCardUp(this)" title="向上移动">↑</button>
+                        <button type="button" class="sort-btn down" onclick="moveCardDown(this)" title="向下移动">↓</button>
+                    </div>
+                    <div class="card-content">
+                        <textarea class="english-input" placeholder="英文段落 (支持多行及 M:/F: 角色标记)"></textarea>
+                        <textarea class="chinese-input" placeholder="中文翻译"></textarea>
+                        <div class="trap-checkbox-row">
+                            <input type="checkbox" class="trap-checkbox" onchange="onTrapToggle(this)">
+                            <label>🕵️ 设为陷阱句</label>
+                        </div>
+                        <div class="trap-extra-field">
+                            <label class="trap-label">正确的对照英文 (系统判分用)</label>
+                            <textarea class="correct-english-input" placeholder="此处输入正确的英文对照文本"></textarea>
+                        </div>
+                        <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
+                    </div>
+                </div>
+            </div>
+            <button onclick="addCard()">添加卡片</button>
+            <button onclick="addExplanationBox()" class="btn-amber">添加说明框</button>
+        </div>
+
+        <div class="card-form card-form-blue">
+            <h3>3. 判定标准与评价设置 (决定星星获取难度)</h3>
+            <div class="form-group">
+                <label>孩子姓名: <input type="text" id="childName" value="宝贝" class="input-wide"></label>
+                <label>优秀(五星)重听上限: <input type="number" id="replayThreshold" value="3" class="input-narrow"></label>
+                <label>优秀(五星)思考时限: <input type="number" id="timeThreshold" value="15" class="input-narrow"></label>
+                <label>五星打磨次数: <input type="number" id="masteryThreshold" value="3" class="input-narrow"></label>
+            </div>
+        </div>
+
+        <div class="card-form detective-settings">
+            <h3>4. 🕵️ 侦探模式设置</h3>
+            <div class="form-group">
+                <label>侦探搜查机会: <input type="number" id="detectiveChances" value="0" min="0" class="input-med" onchange="onDetectiveChancesChange()"></label>
+                <p class="hint-text">💡 设置为陷阱的卡片会自动计算机会数（陷阱数×2），也可手动修改</p>
+            </div>
+        </div>
+
+        <button onclick="generatePage()" class="btn-primary" style="background: #2196F3;">生成练习网页</button>
+
+        <div class="output-area">
+            <h3>5. 生成结果</h3>
+            <textarea id="outputCode" rows="10" readonly></textarea>
+            <button onclick="downloadPage()">下载HTML文件</button>
+        </div>
+    </div>
+
+    <div class="instructions">
+        <h3>📖 使用指南</h3>
+        <p><strong>📝 基本操作</strong> — 日期自动填充当天；点击"添加卡片"创建练习项，填写英文段落与中文翻译；可点击"删除此条"移除卡片。</p>
+        <p><strong>🔄 排序与说明框</strong> — 点击卡片左侧 ↑/↓ 调整顺序（首尾按钮自动禁用）；点击"添加说明框"插入解释文本，支持基础 HTML 标签。</p>
+        <p><strong>🎤 多角色朗读</strong> — 英文中用 <code>M: Hello!</code> 或 <code>Wang Mei：你好</code> 格式标记角色，朗读时自动匹配男/女声。支持 M(男)、F/Wang Mei/Jenny/Amy 等(女)、Li Ming/Tom/Jack 等(男)。</p>
+        <p><strong>⭐ 评价与勋章</strong> — 🎧 每完整听一次点亮一个耳机图标，满 3 个卡片变金色；⭐ 思考达标 或 打磨≥3 次之一即可获五星；🌙 所有句子在半速内完成且重听≤1 次获 6 月亮；🧹 点击"清空记录"重新挑战。</p>
+        <p><strong>🕵️ 侦探模式</strong> — 勾选"设为陷阱句"后，孩子找出故意写错的句子；🔍 点击英文即"举报"，成功抓获得纸屑庆祝，误报扣除机会。</p>
+        <p><strong>📦 生成与下载</strong> — 点击"生成练习网页"预览代码，点击"下载 HTML 文件"保存为独立网页。</p>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
