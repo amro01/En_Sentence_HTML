@@ -121,9 +121,15 @@ const detSummaryEl = document.getElementById('detective-summary');
                 //  The ONLY difference: ear icons stay gray on re-read.
                 //  No trap-hint class, no energy-hint text, no purple glow.
                 // ============================================================
-                function updateCardUI(cardIndex) {
-                    const card = cards[cardIndex];
+                function updateCardUI(cardOrIndex) {
+                    // Accept either a card element or a numeric index
+                    const card = (typeof cardOrIndex === 'number')
+                        ? cards[cardOrIndex]
+                        : cardOrIndex;
                     if (!card) return;
+
+                    const cardIndex = parseInt(card.dataset.cardIndex);
+                    if (isNaN(cardIndex)) return;
 
                     const trapState = getTrapState(cardIndex);
                     if (!trapState) return;
@@ -137,6 +143,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                             card.classList.add('trap-caught');
                             const diffHtml = computeDiff(trapData.english, trapData.correct);
                             englishDiv.innerHTML = diffHtml;
+                            englishDiv.classList.add('visible');
                             wrapTextNodesInElement(englishDiv);
                             const energyBar = card.querySelector('.energy-bar');
                             if (energyBar) updateEnergyBar(energyBar, 0, card);
@@ -237,25 +244,44 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                 // --- Compute diff between wrong and correct text ---
                 function computeDiff(wrongText, correctText) {
-                    const wrongWords = wrongText.split(/\\s+/);
-                    const correctWords = correctText.split(/\\s+/);
-                    const maxLen = Math.max(wrongWords.length, correctWords.length);
-                    let result = '';
-                    for (let i = 0; i < maxLen; i++) {
-                        if (i < wrongWords.length && i < correctWords.length) {
-                            if (wrongWords[i] !== correctWords[i]) {
-                                result += '<span class="wrong-word">' + wrongWords[i] + '</span> ';
-                                result += '<span class="correct-word">' + correctWords[i] + '</span> ';
-                            } else {
-                                result += correctWords[i] + ' ';
-                            }
-                        } else if (i < wrongWords.length) {
-                            result += '<span class="wrong-word">' + wrongWords[i] + '</span> ';
-                        } else if (i < correctWords.length) {
-                            result += '<span class="correct-word">' + correctWords[i] + '</span> ';
+                    const a = wrongText.split(/\\s+/);
+                    const b = correctText.split(/\\s+/);
+                    const m = a.length, n = b.length;
+                    
+                    // Build LCS DP table: dp[i][j] = LCS length of a[0..i-1] and b[0..j-1]
+                    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+                    for (let i = 1; i <= m; i++) {
+                        for (let j = 1; j <= n; j++) {
+                            dp[i][j] = a[i - 1] === b[j - 1]
+                                ? dp[i - 1][j - 1] + 1
+                                : Math.max(dp[i - 1][j], dp[i][j - 1]);
                         }
                     }
-                    return result.trim();
+                    
+                    // Backtrack to find the diff operations
+                    const ops = [];
+                    let i = m, j = n;
+                    while (i > 0 || j > 0) {
+                        if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+                            ops.push({ type: 'same', word: a[i - 1] });
+                            i--; j--;
+                        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                            ops.push({ type: 'ins', word: b[j - 1] });
+                            j--;
+                        } else {
+                            ops.push({ type: 'del', word: a[i - 1] });
+                            i--;
+                        }
+                    }
+                    ops.reverse();
+                    
+                    return ops.map(op => {
+                        switch (op.type) {
+                            case 'same': return op.word;
+                            case 'del':  return '<span class="wrong-word">' + op.word + '</span>';
+                            case 'ins':  return '<span class="correct-word">' + op.word + '</span>';
+                        }
+                    }).join(' ');
                 }
 
                 // --- Update detective visual for processed cards ---
@@ -318,16 +344,18 @@ const detSummaryEl = document.getElementById('detective-summary');
                                 appState.foundTraps.push(cardIndex);
                             }
                         }
+
+                        // Critical: Update DOM immediately (sync, not in setTimeout)
+                        updateCardUI(cardElement);
+
                         saveAppState();
                         updateChanceDisplay();
                         updateDetectiveVisual(cardIndex);
 
-                        startConfetti();
+                        // Visual effects (non-critical — wrapped so errors don't block critical path)
+                        try { startConfetti(); } catch (e) { /* ignore */ }
                         cardElement.classList.add('flip');
-                        setTimeout(() => {
-                            updateCardUI(cardIndex);
-                            cardElement.classList.remove('flip');
-                        }, 50);
+                        setTimeout(() => cardElement.classList.remove('flip'), 800);
                         showHint('🎉 成功抓获陷阱！太厉害了！');
                     } else {
                         // === False alarm: shake + message + visual cleanup ===
@@ -375,10 +403,13 @@ const detSummaryEl = document.getElementById('detective-summary');
                             englishDiv.appendChild(icon);
 
                             englishDiv.addEventListener('click', function(e) {
-                                if (!this.classList.contains('visible')) return;
                                 // 只有点击侦探图标本身才触发举报
                                 const detectiveTarget = e.target.closest('.detective-click-target');
                                 if (!detectiveTarget) return;
+                                // 如果英文尚未显示，自动显示它（点击🔍时无需先点揭示按钮）
+                                if (!this.classList.contains('visible')) {
+                                    this.classList.add('visible');
+                                }
                                 e.stopPropagation();
                                 e.preventDefault();
                                 // 向上找到带有 dataset.cardIndex 的父级卡片容器
