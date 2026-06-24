@@ -1,3 +1,15 @@
+/**
+ * ====================================================================
+ * En_Sentence_HTML - 英语阅读练习生成器
+ * Copyright (c) 2026 amro01 (https://github.com/amro01/En_Sentence_HTML)
+ *
+ * This program is licensed under CC BY-NC-SA 4.0.
+ * Unauthorized commercial repackaging or selling is strictly prohibited.
+ *
+ * 严禁任何个人或机构将本软件及生成的网页用于商业牟利、收费培训或二次打包销售。
+ * ====================================================================
+ */
+
 export function buildGeneratedJS(config) {
     return `
                 // --- 从生成器注入的配置 ---
