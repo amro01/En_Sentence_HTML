@@ -913,8 +913,16 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                 function resetChallenge() {
                     if (confirm('宝贝，准备好清空记录，重新冲击 6 枚月亮了吗？')) {
+                        // ① 清空内存中的 appState，防止在页面卸载前被任何异步回调（如语音 onend）重新保存旧数据
+                        Object.assign(appState, getDefaultAppState());
+                        // ② 取消正在播放的语音合成，阻止 onend 回调触发 saveAppState()
+                        if ('speechSynthesis' in window) {
+                            window.speechSynthesis.cancel();
+                        }
+                        // ③ 从 localStorage 删除持久化数据
                         localStorage.removeItem(CONFIG.practiceId);
-                        location.reload();
+                        // ④ 使用 replace + 时间戳参数强制无缓存刷新，绕过 BFCache（往返缓存）
+                        window.location.replace(window.location.href.split('?')[0] + '?reset=' + Date.now());
                     }
                 }
 
