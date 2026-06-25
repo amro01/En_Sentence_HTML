@@ -297,10 +297,10 @@ const detSummaryEl = document.getElementById('detective-summary');
                 }
 
                 // --- Update detective visual for processed cards ---
-                function updateDetectiveVisual(cardIndex) {
-                    const card = cards[cardIndex];
-                    if (!card) return;
-                    const englishDiv = card.querySelector('.english');
+                // Accept a card DOM element (NOT index) to avoid NodeList positional mismatch
+                function updateDetectiveVisual(cardElement) {
+                    if (!cardElement) return;
+                    const englishDiv = cardElement.querySelector('.english');
                     if (englishDiv) {
                         englishDiv.classList.remove('detectable');
                         englishDiv.style.cursor = 'default';
@@ -362,7 +362,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                         saveAppState();
                         updateChanceDisplay();
-                        updateDetectiveVisual(cardIndex);
+                        updateDetectiveVisual(cardElement);
 
                         // Visual effects (non-critical — wrapped so errors don't block critical path)
                         try { startConfetti(); } catch (e) { /* ignore */ }
@@ -376,7 +376,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                         saveAppState();
                         updateChanceDisplay();
-                        updateDetectiveVisual(cardIndex);
+                        updateDetectiveVisual(cardElement);
                         showHint('🤔 这一句看起来很完美哦！');
                     }
                 }
@@ -389,8 +389,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                     // Restore trap card UI state
                     document.querySelectorAll('.card[data-trap="true"]').forEach(card => {
-                        const ci = parseInt(card.dataset.cardIndex);
-                        if (!isNaN(ci)) updateCardUI(ci);
+                        updateCardUI(card);
                     });
 
                     // Attach detective icons and click handlers
@@ -734,15 +733,15 @@ const detSummaryEl = document.getElementById('detective-summary');
                     const trapState = getTrapState(cardIndex);
                     if (!trapState || trapState.isCaught) return;
 
-                    const card = cards[cardIndex];
+                    const card = document.querySelector('.card[data-card-index="' + cardIndex + '"]');
                     if (!card) return;
 
                     trapState.isCaught = true;
                     trapState.autoRevealed = true;
                     saveAppState();
 
-                    updateCardUI(cardIndex);
-                    updateDetectiveVisual(cardIndex);
+                    updateCardUI(card);
+                    updateDetectiveVisual(card);
 
                     showPersistentHint('🕵️ 发现潜伏的错句！看来它躲过了你的法眼。这是正确的句子，请重新练习吧！');
 
@@ -985,7 +984,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                         // === 3. Restore detective visual: if searched, remove interactivity ===
                         if (trapState && trapState.isSearched) {
-                            updateDetectiveVisual(ci);
+                            updateDetectiveVisual(card);
                         }
                     });
                 }
