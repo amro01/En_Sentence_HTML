@@ -21,7 +21,10 @@ export function buildGeneratedJS(config) {
                     masteryThreshold: ${config.masteryThreshold},
                     detectiveChances: ${config.detectiveChances},
                     trapCount: ${config.trapCount},
-                    trapData: ${JSON.stringify(config.trapData)}
+                    trapData: ${JSON.stringify(config.trapData)},
+                    parentLockEnabled: ${config.parentLockEnabled},
+                    parentPasscode: "${config.parentPasscode || ''}",
+                    totalSentences: ${config.totalSentences}
                 };
 
                 // --- 中英教材常见角色性别字典 ---
@@ -64,8 +67,7 @@ export function buildGeneratedJS(config) {
 const appState = loadAppState();
 let sessionStartTime = null;
 
-// Cached DOM references
-const cards = document.querySelectorAll('.card');
+// Cached DOM references（注意：cards 已废弃！请使用 getCardByIndex() / getCardByEnglish() 替代）
 const chanceIconsEl = document.getElementById('chance-icons');
 const starDisplayEl = document.getElementById('star-display');
 const starRatingEl = document.getElementById('star-rating');
@@ -123,9 +125,150 @@ const detSummaryEl = document.getElementById('detective-summary');
                     localStorage.setItem(CONFIG.practiceId, JSON.stringify(appState));
                 }
 
+                // ============================================================
+                //  统一卡片寻址：通过唯一标识查找 DOM 卡片（替代 cards[index]）
+                // ============================================================
+
+                /**
+                 * 通过英文原文精确查找 DOM 卡片
+                 * @param {string} englishText - 解码后的英文原文
+                 * @returns {Element|null} 匹配的 .card 元素，未找到返回 null
+                 */
+                function getCardByEnglish(englishText) {
+                    return Array.from(document.querySelectorAll('.card')).find(c =>
+                        c.dataset.english && decodeURIComponent(c.dataset.english) === englishText
+                    );
+                }
+
+                /**
+                 * 通过 data-card-index 精确查找 DOM 卡片（用于陷阱操作）
+                 * @param {number|string} cardIndex - 卡片索引
+                 * @returns {Element|null} 匹配的 .card 元素，未找到返回 null
+                 */
+                function getCardByIndex(cardIndex) {
+                    return document.querySelector(\`.card[data-card-index="\${cardIndex}"]\`);
+                }
+
                 // Convenience getters
                 function getStats() { return appState.stats; }
                 function getTrapState(cardIndex) { return appState.trapsState[cardIndex] || null; }
+
+                // ============================================================
+                //  家长审计系统 (Parent Audit System)
+                //  独立存储，resetChallenge() 不清除
+                // ============================================================
+
+                // --- Base64 编解码（防 F12 篡改） ---
+                function encodeForStorage(obj) {
+                    return btoa(unescape(encodeURIComponent(JSON.stringify(obj))));
+                }
+                function decodeFromStorage(str) {
+                    return JSON.parse(decodeURIComponent(escape(atob(str))));
+                }
+
+                function getFirstTryKey() { return 'FTS_' + CONFIG.practiceId; }
+                function getMetaKey()    { return 'META_' + CONFIG.practiceId; }
+
+                // --- 首次尝试快照读写 ---
+                function loadFirstTrySnapshot() {
+                    try {
+                        const raw = localStorage.getItem(getFirstTryKey());
+                        return raw ? decodeFromStorage(raw) : null;
+                    } catch(e) { return null; }
+                }
+                function saveFirstTrySnapshot(snapshot) {
+                    localStorage.setItem(getFirstTryKey(), encodeForStorage(snapshot));
+                }
+
+                // --- 元数据（重置次数等）读写 ---
+                function loadMetaData() {
+                    try {
+                        const raw = localStorage.getItem(getMetaKey());
+                        if (raw) return decodeFromStorage(raw);
+                    } catch(e) { /* ignore */ }
+                    return { resetCount: 0, firstCreatedAt: new Date().toISOString(), lastResetAt: null };
+                }
+                function saveMetaData(meta) {
+                    localStorage.setItem(getMetaKey(), encodeForStorage(meta));
+                }
+
+                // --- 正常捕获：首次完整尝试的快照 ---
+                function tryCaptureFirstTry() {
+                    if (loadFirstTrySnapshot()) return;
+
+                    const stats = getStats();
+                    const totalCards = CONFIG.totalSentences || document.querySelectorAll('.card[data-english]').length;
+                    if (totalCards === 0) return;
+
+                    const allAttempted = Array.from(document.querySelectorAll('.card[data-english]')).every(card => {
+                        const text = decodeURIComponent(card.dataset.english);
+                        return stats[text] && stats[text].count >= 1;
+                    });
+                    if (!allAttempted) return;
+
+                    const result = calculateStars();
+                    const allTimes = Object.values(stats).reduce((s, v) => s + v.time, 0);
+                    const allReplays = Object.values(stats).reduce((s, v) => s + v.replay, 0);
+                    const attemptedCount = Object.keys(stats).length;
+                    const snapshot = {
+                        status: 'complete',
+                        timestamp: new Date().toISOString(),
+                        starRating: result.stars,
+                        avgThinkTime: attemptedCount > 0 ? allTimes / attemptedCount : 0,
+                        totalReplay: allReplays,
+                        totalSentences: totalCards,
+                        attemptedSentences: attemptedCount,
+                        stats: JSON.parse(JSON.stringify(stats))
+                    };
+                    saveFirstTrySnapshot(snapshot);
+                }
+
+                // --- 强制捕获：半途重置时的不完整快照 ---
+                function forceCapturePartialFirstTry() {
+                    const stats = getStats();
+                    const totalCards = CONFIG.totalSentences || document.querySelectorAll('.card[data-english]').length;
+                    if (totalCards === 0) return;
+
+                    const attemptedKeys = Object.keys(stats);
+                    const result = calculateStars();
+                    const allTimes = attemptedKeys.reduce((s, k) => s + (stats[k].time || 0), 0);
+                    const allReplays = attemptedKeys.reduce((s, k) => s + (stats[k].replay || 0), 0);
+                    const snapshot = {
+                        status: 'incomplete',
+                        timestamp: new Date().toISOString(),
+                        starRating: result.stars,
+                        avgThinkTime: attemptedKeys.length > 0 ? allTimes / attemptedKeys.length : 0,
+                        totalReplay: allReplays,
+                        totalSentences: totalCards,
+                        attemptedSentences: attemptedKeys.length,
+                        stats: JSON.parse(JSON.stringify(stats))
+                    };
+                    saveFirstTrySnapshot(snapshot);
+                }
+
+                // --- 统一的家长锁验证 ---
+                function verifyParentLock(context) {
+                    if (!CONFIG.parentLockEnabled) return true;
+
+                    const actionLabel = context === 'hardReset' ? '彻底清除所有数据' : '重置挑战';
+
+                    if (CONFIG.parentPasscode) {
+                        const pwd = prompt('🔒 请输入家长密码以' + actionLabel + '：');
+                        if (pwd !== CONFIG.parentPasscode) {
+                            alert('密码错误，操作已取消。');
+                            return false;
+                        }
+                    } else {
+                        const a = Math.floor(Math.random() * 90) + 10;
+                        const b = Math.floor(Math.random() * 90) + 10;
+                        const answer = prompt('🔒 家长验证：' + a + ' + ' + b + ' = ?');
+                        if (parseInt(answer) !== a + b) {
+                            alert('验证码错误，操作已取消。');
+                            return false;
+                        }
+                    }
+                    return true;
+                }
 
                 // ============================================================
                 //  卡片 UI 更新函数：根据 appState 决定显示内容 (Stealth Mode)
@@ -134,7 +277,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                 //  No trap-hint class, no energy-hint text, no purple glow.
                 // ============================================================
                 function updateCardUI(cardIndex) {
-                    const card = cards[cardIndex];
+                    const card = getCardByIndex(cardIndex);
                     if (!card) return;
 
                     const trapState = getTrapState(cardIndex);
@@ -247,32 +390,47 @@ const detSummaryEl = document.getElementById('detective-summary');
                     setTimeout(() => el.remove(), 2200);
                 }
 
-                // --- Compute diff between wrong and correct text ---
+                // --- Compute diff between wrong and correct text using word-level LCS ---
                 function computeDiff(wrongText, correctText) {
-                    const wrongWords = wrongText.split(/\\s+/);
-                    const correctWords = correctText.split(/\\s+/);
-                    const maxLen = Math.max(wrongWords.length, correctWords.length);
-                    let result = '';
-                    for (let i = 0; i < maxLen; i++) {
-                        if (i < wrongWords.length && i < correctWords.length) {
-                            if (wrongWords[i] !== correctWords[i]) {
-                                result += '<span class="wrong-word">' + wrongWords[i] + '</span> ';
-                                result += '<span class="correct-word">' + correctWords[i] + '</span> ';
+                    const w1 = wrongText.trim().split(/\\s+/);
+                    const w2 = correctText.trim().split(/\\s+/);
+                    
+                    // DP table: longest common subsequence
+                    const dp = Array(w1.length + 1).fill(null).map(() => Array(w2.length + 1).fill(0));
+                    for (let i = 1; i <= w1.length; i++) {
+                        for (let j = 1; j <= w2.length; j++) {
+                            if (w1[i-1].toLowerCase() === w2[j-1].toLowerCase()) {
+                                dp[i][j] = dp[i-1][j-1] + 1;
                             } else {
-                                result += correctWords[i] + ' ';
+                                dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
                             }
-                        } else if (i < wrongWords.length) {
-                            result += '<span class="wrong-word">' + wrongWords[i] + '</span> ';
-                        } else if (i < correctWords.length) {
-                            result += '<span class="correct-word">' + correctWords[i] + '</span> ';
                         }
                     }
-                    return result.trim();
+                    
+                    // Backtrack to build diff result
+                    let i = w1.length, j = w2.length;
+                    const result = [];
+                    while (i > 0 || j > 0) {
+                        if (i > 0 && j > 0 && w1[i-1].toLowerCase() === w2[j-1].toLowerCase()) {
+                            // Match: word exists in both (preserve correct casing)
+                            result.unshift(w2[j-1]);
+                            i--; j--;
+                        } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
+                            // Insertion: word only in correct sentence (blue bold)
+                            result.unshift(\`<span class="diff-ins" style="color: #1976d2; font-weight: bold;">\${w2[j-1]}</span>\`);
+                            j--;
+                        } else if (i > 0 && (j === 0 || dp[i][j-1] < dp[i-1][j])) {
+                            // Deletion: word only in wrong sentence (red line-through)
+                            result.unshift(\`<span class="diff-del" style="color: #d32f2f; text-decoration: line-through; font-weight: bold;">\${w1[i-1]}</span>\`);
+                            i--;
+                        }
+                    }
+                    return result.join(' ');
                 }
 
                 // --- Update detective visual for processed cards ---
                 function updateDetectiveVisual(cardIndex) {
-                    const card = cards[cardIndex];
+                    const card = getCardByIndex(cardIndex);
                     if (!card) return;
                     const englishDiv = card.querySelector('.english');
                     if (englishDiv) {
@@ -366,7 +524,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     });
 
                     // Attach detective icons and click handlers
-                    cards.forEach(card => {
+                    document.querySelectorAll('.card[data-english]').forEach(card => {
                         const ci = parseInt(card.dataset.cardIndex);
                         if (isNaN(ci)) return;
 
@@ -473,6 +631,9 @@ const detSummaryEl = document.getElementById('detective-summary');
                         if (!stats[englishText]) {
                             stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
                         }
+                        // [修复] 使用每句独立绝对时间戳，替代共享全局 sessionStartTime
+                        // Date.now() 返回绝对时间，不受浏览器后台挂起影响
+                        stats[englishText]._revealTime = Date.now();
                         sessionStartTime = Date.now();
                         saveAppState();
 
@@ -511,11 +672,22 @@ const detSummaryEl = document.getElementById('detective-summary');
                         btn.textContent = '再次朗读';
                         btn.style.backgroundColor = '#4CAF50';
                         const stats = getStats();
-                        const duration = Math.floor((Date.now() - (sessionStartTime || Date.now())) / 1000);
                         if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
+                        // [修复] 使用每句独立的绝对时间戳（_revealTime），不依赖共享全局 sessionStartTime
+                        // Date.now() 返回绝对时间，浏览器后台/切标签页不会冻结计时
+                        const revealStart = stats[englishText]._revealTime || sessionStartTime || Date.now();
+                        const rawDuration = Math.floor((Date.now() - revealStart) / 1000);
+                        // 硬上限 300 秒（5分钟），防止长时间挂机产生不合理数据
+                        // 绝对不能使用 CONFIG.timeLimit 作为上限！保留真实超时数据用于评星判定
+                        const HARD_CAP_SECONDS = 300;
+                        const duration = Math.min(rawDuration, HARD_CAP_SECONDS);
+                        // 使用后立即清理 _revealTime，防止页面刷新后残留旧时间戳
+                        delete stats[englishText]._revealTime;
                         stats[englishText].time = Math.max(stats[englishText].time, duration);
                         stats[englishText].count += 1;
                         saveAppState();
+                        // [家长审计] 尝试捕获首次快照
+                        tryCaptureFirstTry();
                         speakTextWithTracking(englishText, card, btn);
                     } else {
                         if (btn.dataset.playing === 'true') {
@@ -625,9 +797,10 @@ const detSummaryEl = document.getElementById('detective-summary');
                             });
                             element.replaceChild(fragment, node);
                           } else if (node.nodeType === Node.ELEMENT_NODE) {
-                               // 只拦截红色错误词（DEL 标签 / wrong-word），放行蓝色正确词（correct-word）
+                               // 拦截红色错误词（DEL / wrong-word / diff-del），放行蓝色正确词（correct-word / diff-ins）
                                const isWrongElement = node.tagName === 'DEL' ||
-                                                     node.classList.contains('wrong-word');
+                                                      node.classList.contains('wrong-word') ||
+                                                      node.classList.contains('diff-del');
                                if (isWrongElement) {
                                    return; // 跳过红色错误文本，不分词、不高亮、不点读
                                }
@@ -703,7 +876,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     const trapState = getTrapState(cardIndex);
                     if (!trapState || trapState.isCaught) return;
 
-                    const card = cards[cardIndex];
+                    const card = getCardByIndex(cardIndex);
                     if (!card) return;
 
                     trapState.isCaught = true;
@@ -721,7 +894,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     }
                 }
 
-                // --- 星级评定 ---
+                // --- 星级评定（含防速刷检测） ---
                 function calculateStars() {
                     const stats = getStats();
                     let total = 0, perfect = 0;
@@ -732,6 +905,8 @@ const detSummaryEl = document.getElementById('detective-summary');
                     let maxTime = 0;
                     let allWithinHalfTime = true;
                     let allReplayZero = true;
+                    let hasSpeedrunFlag = false;
+                    const speedrunSentences = [];
                     for (let key in stats) {
                         const item = stats[key];
                         total++;
@@ -746,10 +921,25 @@ const detSummaryEl = document.getElementById('detective-summary');
                             polishingList.push(key);
                         }
                         if (item.replay > maxReplayCount) { maxReplayCount = item.replay; goldenEarSentence = key; }
+                        // 防速刷：思考时间 < 0.5秒 视为异常
+                        if (item.time < 0.5 && item.time > 0) {
+                            hasSpeedrunFlag = true;
+                            speedrunSentences.push(key + ' (' + item.time + '秒)');
+                        }
                     }
                     let stars = 1;
                     if (total > 0) {
-                        if (allWithinHalfTime && maxReplay <= 1 && total === Object.keys(stats).length) stars = 6;
+                        // 6月亮条件：所有句子在半速时间内完成，重听≤1次，且每句思考时间至少1秒（防背诵秒过）
+                        let sixMoonQualified = allWithinHalfTime && maxReplay <= 1 && total === Object.keys(stats).length;
+                        if (sixMoonQualified) {
+                            for (let key in stats) {
+                                if (stats[key].time < 1.0 && stats[key].time > 0) {
+                                    sixMoonQualified = false;
+                                    break;
+                                }
+                            }
+                        }
+                        if (sixMoonQualified) stars = 6;
                         else if (perfect === total && allReplayZero) stars = 5;
                         else if (perfect === total && !allReplayZero) stars = 4;
                         else { const r = perfect / total; if (r >= 0.8) stars = 4; else if (r >= 0.5) stars = 3; else if (r > 0) stars = 2; else stars = 1; }
@@ -764,7 +954,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     }
                     const totalTraps = CONFIG.trapCount;
                     const allTrapsFound = totalTraps > 0 && manuallyFound >= totalTraps;
-                    return { stars, total, perfect, masteredList, polishingList, goldenEarSentence, maxReplayCount, maxReplay, trapsFound: manuallyFound, totalTraps, allTrapsFound };
+                    return { stars, total, perfect, masteredList, polishingList, goldenEarSentence, maxReplayCount, maxReplay, trapsFound: manuallyFound, totalTraps, allTrapsFound, hasSpeedrunFlag, speedrunSentences };
                 }
 
                 function generateReport() {
@@ -800,10 +990,42 @@ const detSummaryEl = document.getElementById('detective-summary');
                         if (result.allTrapsFound) report += ' 🌟 全部抓获，洞察力无与伦比！';
                         report += '\\n\\n';
                     }
+                    // 异常检测报告
+                    if (result.hasSpeedrunFlag) {
+                        report += '⚠️ 异常检测：以下句子思考时间 < 0.5秒，存在快速跳过嫌疑：\\n';
+                        result.speedrunSentences.forEach(s => report += '  ' + s + '\\n');
+                        report += '\\n';
+                    }
                     report += '📊 原始数据：\\n';
                     for (let key in getStats()) {
                         const item = getStats()[key];
                         report += '  ' + key + ' -> 思考' + item.time + '秒, 重听' + item.replay + '次, 练习' + item.count + '次, 打磨' + (item.mastery_count || 0) + '次\\n';
+                    }
+                    // === 家长审计数据（不会被重置清除） ===
+                    report += '\\n--- 家长审计数据（不会被重置清除） ---\\n';
+                    const firstTry = loadFirstTrySnapshot();
+                    const meta = loadMetaData();
+                    if (firstTry) {
+                        const statusLabel = firstTry.status === 'incomplete' ? '（⚠️ 首测未完成，中途重置时强制捕获）' : '';
+                        report += '📋 首轮测试数据' + statusLabel + '：\\n';
+                        report += '  首测时间: ' + firstTry.timestamp + '\\n';
+                        report += '  首测星级: ' + '⭐'.repeat(firstTry.starRating || 0) + ' (' + (firstTry.starRating || 0) + '星)\\n';
+                        report += '  首测平均思考时间: ' + (firstTry.avgThinkTime || 0).toFixed(1) + '秒\\n';
+                        report += '  首测总重听次数: ' + (firstTry.totalReplay || 0) + '次\\n';
+                        if (firstTry.attemptedSentences !== undefined) {
+                            report += '  首测完成句子: ' + firstTry.attemptedSentences + '/' + firstTry.totalSentences + '\\n';
+                        }
+                        if (result.stars === 6 && firstTry.starRating < 6) {
+                            report += '\\n⚠️ 当前评价为 6月亮（紫金闪耀），但首测仅为 ' + firstTry.starRating + ' 星。\\n';
+                            report += '  提示家长：本次高评价可能来源于反复练习后的熟练表现，\\n';
+                            report += '  请结合首测数据评估孩子真实的句子掌握程度。\\n';
+                        }
+                    } else {
+                        report += '📋 首轮测试：尚未完成首轮完整练习，请完成所有句子后再领取勋章。\\n';
+                    }
+                    report += '🔄 重置次数: ' + (meta.resetCount || 0) + ' 次\\n';
+                    if (meta.lastResetAt) {
+                        report += '  上次重置时间: ' + meta.lastResetAt + '\\n';
                     }
                     return report;
                 }
@@ -811,6 +1033,13 @@ const detSummaryEl = document.getElementById('detective-summary');
                 function claimReward() {
                     const result = calculateStars();
                     if (result.total === 0) { alert("还没有练习记录，请先完成练习哦！"); return; }
+
+                    // 检查是否所有卡片都已尝试
+                    const totalCards = CONFIG.totalSentences || document.querySelectorAll('.card[data-english]').length;
+                    if (result.total < totalCards) {
+                        alert('还差 ' + (totalCards - result.total) + ' 个句子未完成！请完成所有练习后再领取勋章。');
+                        return;
+                    }
 
                     // Check for uncaptured traps (not even auto-revealed)
                     const hasUncaughtTraps = CONFIG.trapCount > 0 && CONFIG.trapData.some(t => {
@@ -821,6 +1050,9 @@ const detSummaryEl = document.getElementById('detective-summary');
                         alert('🚨 警报！有潜伏的错误逃脱了你的法眼！再仔细检查一下那些无法积攒能量（耳机不亮）的句子吧！');
                         return;
                     }
+
+                    // 尝试捕获首次快照（如果尚未捕获）
+                    tryCaptureFirstTry();
 
                     startConfetti();
                     starDisplayEl.classList.remove('hidden');
@@ -845,7 +1077,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                             if (item.time > CONFIG.timeLimit && item.mastery_count >= CONFIG.masteryThreshold) { hasMasteryBased = true; break; }
                         }
                     }
-                    const msg = messages[result.stars] || messages[1];
+                    let msg = messages[result.stars] || messages[1];
                     if (result.stars === 6) {}
                     else if (hasMasteryBased && result.stars === 5) msg = '🌟 地道发音大师！坚持打磨，发音已臻化境！';
                     medalMsgEl.textContent = msg;
@@ -882,8 +1114,35 @@ const detSummaryEl = document.getElementById('detective-summary');
                 }
 
                 function resetChallenge() {
+                    // 家长锁验证
+                    if (!verifyParentLock('reset')) return;
+
+                    // 如果首次快照尚未生成，强制捕获当前不完整数据
+                    if (!loadFirstTrySnapshot()) {
+                        forceCapturePartialFirstTry();
+                    }
+
+                    // 增加重置计数器
+                    const meta = loadMetaData();
+                    meta.resetCount++;
+                    meta.lastResetAt = new Date().toISOString();
+                    saveMetaData(meta);
+
                     if (confirm('宝贝，准备好清空记录，重新冲击 6 枚月亮了吗？')) {
+                        // 只清除练习数据，保留 FIRST_TRY_KEY 和 META_KEY
                         localStorage.removeItem(CONFIG.practiceId);
+                        location.reload();
+                    }
+                }
+
+                function hardReset() {
+                    // 强制触发家长锁验证
+                    if (!verifyParentLock('hardReset')) return;
+
+                    if (confirm('⚠️ 此操作将清除包括家长审计数据在内的所有记录！\\n确定要继续吗？此操作不可撤销！')) {
+                        localStorage.removeItem(CONFIG.practiceId);
+                        localStorage.removeItem(getFirstTryKey());
+                        localStorage.removeItem(getMetaKey());
                         location.reload();
                     }
                 }
@@ -892,7 +1151,12 @@ const detSummaryEl = document.getElementById('detective-summary');
                 function refreshPersist() {
                     const stats = getStats();
 
-                    cards.forEach(card => {
+                    // [修复] 清理所有句子残留的 _revealTime（防止页面刷新后复用旧时间戳）
+                    Object.keys(stats).forEach(key => {
+                        if (stats[key]._revealTime !== undefined) delete stats[key]._revealTime;
+                    });
+
+                    document.querySelectorAll('.card[data-english]').forEach(card => {
                         const ci = parseInt(card.dataset.cardIndex);
                         if (isNaN(ci)) return;
 
@@ -962,7 +1226,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                 function initPage() {
                     // Step 1: For uncaught traps, set the displayed english to the trap text
                     CONFIG.trapData.forEach(t => {
-                        const card = cards[t.index];
+                        const card = getCardByIndex(t.index);
                         if (card) {
                             const trapState = getTrapState(t.index);
                             if (trapState && !trapState.isCaught) {

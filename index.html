@@ -63,10 +63,26 @@
             </div>
         </div>
 
+        <div class="card-form" style="background:#fff3e0;border:1px solid #ffb74d;">
+            <h3>5. 🔒 家长审计设置 (防刷分/作弊)</h3>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" id="enableParentLock" checked>
+                    启用家长锁（重置挑战时需数学验证或密码）
+                </label>
+                <p class="hint-text">💡 开启后，孩子点击"清空记录"时会弹出验证题，防止随意重置刷分</p>
+            </div>
+            <div class="form-group">
+                <label>🔑 家长管理密码（可选，留空则使用随机数学题验证）:
+                    <input type="text" id="parentPasscode" placeholder="留空则使用数学题" class="input-wide">
+                </label>
+            </div>
+        </div>
+
         <button onclick="generatePage()" class="btn-primary" style="background: #2196F3;">生成练习网页</button>
 
         <div class="output-area">
-            <h3>5. 生成结果</h3>
+            <h3>6. 生成结果</h3>
             <textarea id="outputCode" rows="10" readonly></textarea>
             <button onclick="downloadPage()">下载HTML文件</button>
         </div>
@@ -79,6 +95,7 @@
         <p><strong>🎤 多角色朗读</strong> — 英文中用 <code>M: Hello!</code> 或 <code>Wang Mei：你好</code> 格式标记角色，朗读时自动匹配男/女声。支持 M(男)、F/Wang Mei/Jenny/Amy 等(女)、Li Ming/Tom/Jack 等(男)。</p>
         <p><strong>⭐ 评价与勋章</strong> — 🎧 每完整听一次点亮一个耳机图标，满 3 个卡片变金色；⭐ 思考达标 或 打磨≥3 次之一即可获五星；🌙 所有句子在半速内完成且重听≤1 次获 6 月亮；🧹 点击"清空记录"重新挑战。</p>
         <p><strong>🕵️ 侦探模式</strong> — 勾选"设为陷阱句"后，孩子找出故意写错的句子；🔍 点击英文即"举报"，成功抓获得纸屑庆祝，误报扣除机会。</p>
+        <p><strong>🔒 家长审计（v3.0新增）</strong> — 启用家长锁后，重置需数学验证；系统自动记录首轮测试快照和重置次数，生成勋章时强制附加家长审计数据；思考时间<0.5秒触发异常标记，<1.0秒无法获得6月亮评价。</p>
         <p><strong>📦 生成与下载</strong> — 点击"生成练习网页"预览代码，点击"下载 HTML 文件"保存为独立网页。</p>
     </div>
 

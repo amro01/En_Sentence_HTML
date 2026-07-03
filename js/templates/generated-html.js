@@ -26,7 +26,9 @@ export function buildGeneratedHTML(params) {
         masteryThreshold,
         effectiveChances,
         trapCount,
-        trapData
+        trapData,
+        parentLockEnabled,
+        parentPasscode
     } = params;
 
     const jsContent = buildGeneratedJS({
@@ -37,7 +39,10 @@ export function buildGeneratedHTML(params) {
         masteryThreshold,
         detectiveChances: effectiveChances,
         trapCount,
-        trapData
+        trapData,
+        parentLockEnabled,
+        parentPasscode,
+        totalSentences: (cardsHTML.match(/class="card"/g) || []).length
     });
 
     return `
@@ -90,6 +95,12 @@ export function buildGeneratedHTML(params) {
                         <div id="detective-summary" class="hidden"></div>
                         <p class="save-hint">📁 请将勋章存入"成就文件夹"，满50颗星星换大餐哦！</p>
                     </div>
+                </div>
+                <!-- 硬重置入口：低调可见，灰色小字 -->
+                <div style="margin-top:30px;text-align:center;font-size:0.75em;color:#ccc;">
+                    <a href="#" onclick="hardReset();return false;" style="color:#ddd;text-decoration:none;">
+                        ⚠️ 彻底清除所有记录（含审计数据）
+                    </a>
                 </div>
             </div>
             <script>${jsContent}

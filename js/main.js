@@ -177,6 +177,8 @@ function generatePage() {
     const timeThreshold = parseInt(document.getElementById('timeThreshold').value) || 15;
     const masteryThreshold = parseInt(document.getElementById('masteryThreshold').value) || 3;
     const detectiveChances = parseInt(document.getElementById('detectiveChances').value) || 0;
+    const parentLockEnabled = document.getElementById('enableParentLock')?.checked ?? true;
+    const parentPasscode = document.getElementById('parentPasscode')?.value || '';
     const cards = document.querySelectorAll('#cardsContainer .card-item');
     
     let contentHash = 0;
@@ -268,7 +270,9 @@ function generatePage() {
         masteryThreshold,
         effectiveChances,
         trapCount,
-        trapData
+        trapData,
+        parentLockEnabled,
+        parentPasscode
     });
 
     outputCodeEl.value = pageTemplate;

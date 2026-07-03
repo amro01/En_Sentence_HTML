@@ -52,30 +52,25 @@ export const GENERATED_CSS = `
                     background-color: rgba(255, 235, 59, 0.4);
                     color: #0d47a1;
                 }
-                 del .word-span {
+                 del .word-span, .diff-del .word-span {
                      pointer-events: none !important;
                      cursor: default !important;
                      background-color: transparent !important;
                      color: inherit !important;
                      text-decoration: line-through !important;
                  }
-                  .wrong-word {
+                  .diff-del {
                       color: #d32f2f !important;
                       text-decoration: line-through !important;
+                      font-weight: bold !important;
                       pointer-events: none !important;
                   }
-                  .wrong-word .word-span {
-                      pointer-events: none !important;
-                      cursor: default !important;
-                      background-color: transparent !important;
-                      color: inherit !important;
-                      text-decoration: line-through !important;
-                  }
-                  .correct-word {
-                      color: #1565c0 !important;
+                  .diff-ins {
+                      color: #1976d2 !important;
+                      font-weight: bold !important;
                       pointer-events: auto !important;
                   }
-                  .correct-word .word-span {
+                  .diff-ins .word-span {
                       pointer-events: auto !important;
                       cursor: pointer !important;
                       color: inherit !important;
@@ -117,8 +112,8 @@ export const GENERATED_CSS = `
                 .card.flip .content { animation: flipReplace 0.8s ease forwards; }
                 @keyframes flipReplace { 0% { transform: rotateX(0); } 50% { transform: rotateX(90deg); opacity: 0.3; } 51% { opacity: 1; } 100% { transform: rotateX(0); } }
                 
-                .wrong-word { color: #d32f2f; text-decoration: line-through; font-weight: bold; }
-                .correct-word { color: #1565c0; font-weight: bold; }
+                .diff-del { color: #d32f2f; text-decoration: line-through; font-weight: bold; }
+                .diff-ins { color: #1976d2; font-weight: bold; }
                 
                 /* Hint message (auto-fade) */
                 .hint-msg { position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: white; padding: 20px 30px; border-radius: 15px; font-size: 1.3em; z-index: 2000; pointer-events: none; animation: hintFade 2s ease forwards; }
