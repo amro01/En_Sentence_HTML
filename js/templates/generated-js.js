@@ -276,9 +276,15 @@ const detSummaryEl = document.getElementById('detective-summary');
                 //  The ONLY difference: ear icons stay gray on re-read.
                 //  No trap-hint class, no energy-hint text, no purple glow.
                 // ============================================================
-                function updateCardUI(cardIndex) {
-                    const card = getCardByIndex(cardIndex);
+                function updateCardUI(cardOrIndex) {
+                    // Accept either a card element or a numeric index
+                    const card = (typeof cardOrIndex === 'number')
+                        ? cards[cardOrIndex]
+                        : cardOrIndex;
                     if (!card) return;
+
+                    const cardIndex = parseInt(card.dataset.cardIndex);
+                    if (isNaN(cardIndex)) return;
 
                     const trapState = getTrapState(cardIndex);
                     if (!trapState) return;
@@ -292,6 +298,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                             card.classList.add('trap-caught');
                             const diffHtml = computeDiff(trapData.english, trapData.correct);
                             englishDiv.innerHTML = diffHtml;
+                            englishDiv.classList.add('visible');
                             wrapTextNodesInElement(englishDiv);
                             const energyBar = card.querySelector('.energy-bar');
                             if (energyBar) updateEnergyBar(energyBar, 0, card);
@@ -392,47 +399,51 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                 // --- Compute diff between wrong and correct text using word-level LCS ---
                 function computeDiff(wrongText, correctText) {
-                    const w1 = wrongText.trim().split(/\\s+/);
-                    const w2 = correctText.trim().split(/\\s+/);
+                    const a = wrongText.split(/\\s+/);
+                    const b = correctText.split(/\\s+/);
+                    const m = a.length, n = b.length;
                     
-                    // DP table: longest common subsequence
-                    const dp = Array(w1.length + 1).fill(null).map(() => Array(w2.length + 1).fill(0));
-                    for (let i = 1; i <= w1.length; i++) {
-                        for (let j = 1; j <= w2.length; j++) {
-                            if (w1[i-1].toLowerCase() === w2[j-1].toLowerCase()) {
-                                dp[i][j] = dp[i-1][j-1] + 1;
-                            } else {
-                                dp[i][j] = Math.max(dp[i-1][j], dp[i][j-1]);
-                            }
+                    // Build LCS DP table: dp[i][j] = LCS length of a[0..i-1] and b[0..j-1]
+                    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+                    for (let i = 1; i <= m; i++) {
+                        for (let j = 1; j <= n; j++) {
+                            dp[i][j] = a[i - 1] === b[j - 1]
+                                ? dp[i - 1][j - 1] + 1
+                                : Math.max(dp[i - 1][j], dp[i][j - 1]);
                         }
                     }
                     
-                    // Backtrack to build diff result
-                    let i = w1.length, j = w2.length;
-                    const result = [];
+                    // Backtrack to find the diff operations
+                    const ops = [];
+                    let i = m, j = n;
                     while (i > 0 || j > 0) {
-                        if (i > 0 && j > 0 && w1[i-1].toLowerCase() === w2[j-1].toLowerCase()) {
-                            // Match: word exists in both (preserve correct casing)
-                            result.unshift(w2[j-1]);
+                        if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+                            ops.push({ type: 'same', word: a[i - 1] });
                             i--; j--;
-                        } else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) {
-                            // Insertion: word only in correct sentence (blue bold)
-                            result.unshift(\`<span class="diff-ins" style="color: #1976d2; font-weight: bold;">\${w2[j-1]}</span>\`);
+                        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+                            ops.push({ type: 'ins', word: b[j - 1] });
                             j--;
-                        } else if (i > 0 && (j === 0 || dp[i][j-1] < dp[i-1][j])) {
-                            // Deletion: word only in wrong sentence (red line-through)
-                            result.unshift(\`<span class="diff-del" style="color: #d32f2f; text-decoration: line-through; font-weight: bold;">\${w1[i-1]}</span>\`);
+                        } else {
+                            ops.push({ type: 'del', word: a[i - 1] });
                             i--;
                         }
                     }
-                    return result.join(' ');
+                    ops.reverse();
+                    
+                    return ops.map(op => {
+                        switch (op.type) {
+                            case 'same': return op.word;
+                            case 'del':  return '<span class="diff-del">' + op.word + '</span>';
+                            case 'ins':  return '<span class="diff-ins">' + op.word + '</span>';
+                        }
+                    }).join(' ');
                 }
 
                 // --- Update detective visual for processed cards ---
-                function updateDetectiveVisual(cardIndex) {
-                    const card = getCardByIndex(cardIndex);
-                    if (!card) return;
-                    const englishDiv = card.querySelector('.english');
+                // Accept a card DOM element (NOT index) to avoid NodeList positional mismatch
+                function updateDetectiveVisual(cardElement) {
+                    if (!cardElement) return;
+                    const englishDiv = cardElement.querySelector('.english');
                     if (englishDiv) {
                         englishDiv.classList.remove('detectable');
                         englishDiv.style.cursor = 'default';
@@ -488,16 +499,18 @@ const detSummaryEl = document.getElementById('detective-summary');
                                 appState.foundTraps.push(cardIndex);
                             }
                         }
+
+                        // Critical: Update DOM immediately (sync, not in setTimeout)
+                        updateCardUI(cardElement);
+
                         saveAppState();
                         updateChanceDisplay();
-                        updateDetectiveVisual(cardIndex);
+                        updateDetectiveVisual(cardElement);
 
-                        startConfetti();
+                        // Visual effects (non-critical — wrapped so errors don't block critical path)
+                        try { startConfetti(); } catch (e) { /* ignore */ }
                         cardElement.classList.add('flip');
-                        setTimeout(() => {
-                            updateCardUI(cardIndex);
-                            cardElement.classList.remove('flip');
-                        }, 50);
+                        setTimeout(() => cardElement.classList.remove('flip'), 800);
                         showHint('🎉 成功抓获陷阱！太厉害了！');
                     } else {
                         // === False alarm: shake + message + visual cleanup ===
@@ -506,7 +519,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                         saveAppState();
                         updateChanceDisplay();
-                        updateDetectiveVisual(cardIndex);
+                        updateDetectiveVisual(cardElement);
                         showHint('🤔 这一句看起来很完美哦！');
                     }
                 }
@@ -519,8 +532,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                     // Restore trap card UI state
                     document.querySelectorAll('.card[data-trap="true"]').forEach(card => {
-                        const ci = parseInt(card.dataset.cardIndex);
-                        if (!isNaN(ci)) updateCardUI(ci);
+                        updateCardUI(card);
                     });
 
                     // Attach detective icons and click handlers
@@ -545,10 +557,13 @@ const detSummaryEl = document.getElementById('detective-summary');
                             englishDiv.appendChild(icon);
 
                             englishDiv.addEventListener('click', function(e) {
-                                if (!this.classList.contains('visible')) return;
                                 // 只有点击侦探图标本身才触发举报
                                 const detectiveTarget = e.target.closest('.detective-click-target');
                                 if (!detectiveTarget) return;
+                                // 如果英文尚未显示，自动显示它（点击🔍时无需先点揭示按钮）
+                                if (!this.classList.contains('visible')) {
+                                    this.classList.add('visible');
+                                }
                                 e.stopPropagation();
                                 e.preventDefault();
                                 // 向上找到带有 dataset.cardIndex 的父级卡片容器
@@ -876,15 +891,15 @@ const detSummaryEl = document.getElementById('detective-summary');
                     const trapState = getTrapState(cardIndex);
                     if (!trapState || trapState.isCaught) return;
 
-                    const card = getCardByIndex(cardIndex);
+                    const card = document.querySelector('.card[data-card-index="' + cardIndex + '"]');
                     if (!card) return;
 
                     trapState.isCaught = true;
                     trapState.autoRevealed = true;
                     saveAppState();
 
-                    updateCardUI(cardIndex);
-                    updateDetectiveVisual(cardIndex);
+                    updateCardUI(card);
+                    updateDetectiveVisual(card);
 
                     showPersistentHint('🕵️ 发现潜伏的错句！看来它躲过了你的法眼。这是正确的句子，请重新练习吧！');
 
@@ -1129,9 +1144,16 @@ const detSummaryEl = document.getElementById('detective-summary');
                     saveMetaData(meta);
 
                     if (confirm('宝贝，准备好清空记录，重新冲击 6 枚月亮了吗？')) {
-                        // 只清除练习数据，保留 FIRST_TRY_KEY 和 META_KEY
+                        // ① 清空内存中的 appState，防止在页面卸载前被任何异步回调（如语音 onend）重新保存旧数据
+                        Object.assign(appState, getDefaultAppState());
+                        // ② 取消正在播放的语音合成，阻止 onend 回调触发 saveAppState()
+                        if ('speechSynthesis' in window) {
+                            window.speechSynthesis.cancel();
+                        }
+                        // ③ 从 localStorage 删除持久化数据
                         localStorage.removeItem(CONFIG.practiceId);
-                        location.reload();
+                        // ④ 使用 replace + 时间戳参数强制无缓存刷新，绕过 BFCache（往返缓存）
+                        window.location.replace(window.location.href.split('?')[0] + '?reset=' + Date.now());
                     }
                 }
 
@@ -1218,7 +1240,7 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                         // === 3. Restore detective visual: if searched, remove interactivity ===
                         if (trapState && trapState.isSearched) {
-                            updateDetectiveVisual(ci);
+                            updateDetectiveVisual(card);
                         }
                     });
                 }
