@@ -26,7 +26,7 @@ export const GENERATED_CSS = `
                 .english { font-size: 1.2em; color: #2c3e50; margin-bottom: 10px; line-height: 1.6; display: none; cursor: default; position: relative; }
                 .english.visible { display: block; }
                 .english.detectable { cursor: default; }
-                .english.detectable:hover { background: #f3e8ff; border-radius: 4px; }
+                .english.detectable:hover { background: #DDBBD6; border-radius: 4px; } /* DETECTIVE_BG_COLOR - 侦探模式英文悬停高亮背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
                 .detective-icon { position: absolute; bottom: 2px; right: 2px; font-size: 0.7em; opacity: 0.2; transition: opacity 0.3s; }
                 .detective-click-target {
                     cursor: pointer !important;
@@ -98,7 +98,7 @@ export const GENERATED_CSS = `
                 @keyframes earBounce { 0% { transform: scale(0.9); } 50% { transform: scale(1.3); } 100% { transform: scale(1.1); } }
                 
                 /* Detective Chance Bar */
-                .detective-bar { background: linear-gradient(135deg, #e8d5f5, #d1c4e9); padding: 12px 18px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 1.1em; box-shadow: 0 2px 8px rgba(124,77,255,0.15); }
+                .detective-bar { background: #DDBBD6; padding: 12px 18px; border-radius: 12px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; font-size: 1.1em; box-shadow: 0 2px 8px rgba(124,77,255,0.15); } /* DETECTIVE_BG_COLOR - 侦探模式搜查条背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
                 .detective-bar .chances { display: flex; align-items: center; gap: 8px; }
                 .detective-bar .chance-icons { font-size: 1.4em; letter-spacing: 2px; }
                 .detective-bar .chance-icons .used { opacity: 0.25; filter: grayscale(1); }
@@ -143,7 +143,7 @@ export const GENERATED_CSS = `
                 .star-rating { font-size: 3em; margin: 15px 0; letter-spacing: 5px; }
                 .star-content h2 { color: #e67e22; margin: 0; }
                 #medal-message { font-size: 1.2em; color: #2c3e50; margin: 10px 0; }
-                #detective-summary { font-size: 1.1em; color: #6a1b9a; margin: 10px 0; padding: 12px; background: #f3e5f5; border-radius: 8px; }
+                #detective-summary { font-size: 1.1em; color: #6a1b9a; margin: 10px 0; padding: 12px; background: #DDBBD6; border-radius: 8px; } /* DETECTIVE_BG_COLOR - 侦探模式总结框背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
                 .save-hint { font-size: 1em; color: #e67e22; margin-top: 15px; font-style: italic; }
                 #confetti-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 1000; overflow: hidden; }
                 .confetti-piece { position: absolute; top: -10px; opacity: 0.9; animation: confettiFall linear forwards; }

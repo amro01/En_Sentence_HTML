@@ -18,7 +18,7 @@ label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
 }
 
 .card-item.trap-card {
-    background: #f3e8ff;
+    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式陷阱卡背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
     border-color: #ce93d8;
 }
 
@@ -37,7 +37,7 @@ label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
 }
 
 .card-item.trap-card .sort-buttons {
-    background: #e1bee7;
+    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式陷阱卡排序按钮背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
 }
 
 .sort-btn {
@@ -202,12 +202,12 @@ button:hover {
 }
 .trap-extra-field textarea {
     border-color: #ce93d8;
-    background: #faf5ff;
+    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式对照文本输入框背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
 }
 
 /* --- Detective Settings Section --- */
 .detective-settings {
-    background: #f3e5f5;
+    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式设置区块背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
     border: 1px solid #ce93d8;
     border-radius: 8px;
     padding: 15px;
