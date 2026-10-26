@@ -552,7 +552,7 @@ test('生成页：运行时已注入、脚本可解析、注入值不截断 scri
     const { buildGeneratedHTML } = await import('../js/templates/generated-html.js');
     const html = buildGeneratedHTML({
         date: '2026年-10月-26日',
-        cardsHTML: '<div class="card" data-english="abc" data-zh="%E4%BD%A0%E5%A5%BD" data-card-index="0" data-weak-id="0123456789abcdef" data-review-count="2"><div class="content"><div class="chinese"></div><div class="english" id="english-0"></div></div><button class="reveal-btn locked" disabled></button><div class="energy-bar"></div><div class="weak-row"><button type="button" class="weak-toggle" aria-pressed="false" onclick="WeakReview.toggleCardWeak(this)">🔴 需复习</button></div></div>',
+        cardsHTML: '<div class="card" data-english="abc" data-zh="%E4%BD%A0%E5%A5%BD" data-card-index="0" data-weak-id="0123456789abcdef" data-review-count="2"><div class="content"><div class="chinese"></div><div class="english" id="english-0"></div></div><button class="reveal-btn locked" disabled></button><div class="energy-bar"></div></div>',
         hasAnyTrap: false,
         childName: '宝贝"</script><x>',
         practiceId: 'STATS_TEST',
@@ -569,10 +569,6 @@ test('生成页：运行时已注入、脚本可解析、注入值不截断 scri
     assert.ok(html.includes('window.WeakReview'));
     assert.ok(html.includes('WEAK_OUTBOX_'));
     assert.ok(html.includes('totalSentences: 1'));
-    assert.ok(html.includes('id="weak-panel"'));
-    assert.ok(html.includes('id="weak-count-btn"'));
-    assert.ok(html.includes('WeakReview.toggleList'));
-    assert.ok(html.includes('WeakReview.toggleCardWeak'));
     assert.ok(html.includes('data-zh='));
     assert.ok(!html.includes('</script><x>'));
     assert.ok(!html.includes('p"</script>'));
@@ -580,6 +576,24 @@ test('生成页：运行时已注入、脚本可解析、注入值不截断 scri
     const match = html.match(/<script>([\s\S]*)<\/script>/);
     assert.ok(match);
     assert.doesNotThrow(() => new Function(match[1]));
+
+    // 孩子可见区域：只有练习控件，没有任何错题/复习入口
+    const bodyMarkup = html.slice(0, html.indexOf('<script>'));
+    assert.ok(!bodyMarkup.includes('需复习'));
+    assert.ok(!bodyMarkup.includes('weak-count-btn'));
+    assert.ok(!bodyMarkup.includes('weak-panel'));
+    assert.ok(!bodyMarkup.includes('weak-toggle'));
+    assert.ok(!bodyMarkup.includes('生疏复习'));
+
+    // 家长审计区：数据搬运与手动标记都收在页面底部，默认收起
+    assert.ok(bodyMarkup.includes('id="parent-zone-toggle"'));
+    assert.match(bodyMarkup, /id="parent-zone-body" class="parent-zone-body hidden"/);
+    assert.ok(bodyMarkup.includes('id="weak-copy-btn"'));
+    assert.ok(bodyMarkup.includes('id="weak-save-btn"'));
+    assert.ok(bodyMarkup.includes('id="weak-return-btn"'));
+    assert.ok(bodyMarkup.includes('id="weak-mark-list"'));
+    assert.ok(html.includes('WeakReview.toggleParentZone'));
+    assert.ok(match[1].includes('toggleEntryWeak: toggleEntryWeak'));
 });
 
 test('手动标记缺少时间戳时用观察时间兜底', () => {

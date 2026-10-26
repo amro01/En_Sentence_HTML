@@ -85,19 +85,6 @@ export function buildGeneratedHTML(params) {
                         <option value="1.5">快速 (1.5x)</option>
                     </select>
                 </div>
-                <div class="control-group weak-control">
-                    <label>生疏复习:</label>
-                    <button type="button" id="weak-count-btn" class="weak-count-btn" onclick="WeakReview.toggleList()">🔁 错题本 (0)</button>
-                </div>
-            </div>
-
-            <div id="weak-panel" class="weak-panel">
-                <div class="weak-toolbar">
-                    <button type="button" id="weak-copy-btn" class="weak-btn" onclick="WeakReview.copyPack()">📋 复制错题包</button>
-                    <button type="button" id="weak-save-btn" class="weak-btn" onclick="WeakReview.downloadPack()">💾 下载错题包</button>
-                    <button type="button" id="weak-return-btn" class="weak-btn" onclick="WeakReview.returnToGenerator()">⬅️ 回传生成器</button>
-                </div>
-                <div id="weak-list" class="weak-list hidden"></div>
             </div>
 
             ${cardsHTML}
@@ -116,11 +103,20 @@ export function buildGeneratedHTML(params) {
                         <p class="save-hint">📁 请将勋章存入"成就文件夹"，满50颗星星换大餐哦！</p>
                     </div>
                 </div>
-                <!-- 硬重置入口：低调可见，灰色小字 -->
-                <div style="margin-top:30px;text-align:center;font-size:0.75em;color:#ccc;">
-                    <a href="#" onclick="hardReset();return false;" style="color:#ddd;text-decoration:none;">
-                        ⚠️ 彻底清除所有记录（含审计数据）
-                    </a>
+            </div>
+
+            <!-- 家长审计区：默认收起，孩子端不出现任何复习/错题字样 -->
+            <div id="parent-zone" class="parent-zone">
+                <button type="button" id="parent-zone-toggle" class="parent-zone-toggle" aria-expanded="false" aria-controls="parent-zone-body" onclick="WeakReview.toggleParentZone()">家长审计</button>
+                <div id="parent-zone-body" class="parent-zone-body hidden">
+                    <div class="parent-toolbar">
+                        <button type="button" id="weak-copy-btn" class="weak-btn" onclick="WeakReview.copyPack()">📋 复制错题包</button>
+                        <button type="button" id="weak-save-btn" class="weak-btn" onclick="WeakReview.downloadPack()">💾 下载错题包</button>
+                        <button type="button" id="weak-return-btn" class="weak-btn" onclick="WeakReview.returnToGenerator()">⬅️ 回传生成器</button>
+                    </div>
+                    <p class="parent-hint">句子右侧圆点 = 加入明日复习清单（孩子端不可见，不影响勋章评价）</p>
+                    <div id="weak-mark-list" class="weak-mark-list"></div>
+                    <a href="#" class="parent-reset" onclick="hardReset();return false;">⚠️ 彻底清除所有记录（含审计数据）</a>
                 </div>
             </div>
             <script>${jsContent}

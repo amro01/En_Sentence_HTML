@@ -43,7 +43,6 @@ ${toBase64Url.toString()}
     var OUTBOX_PREFIX = 'WEAK_OUTBOX_';
     var outbox = null;
     var storageOk = true;
-    var uiBuilt = false;
 
     function scoreConfig() {
         return {
@@ -283,22 +282,50 @@ ${toBase64Url.toString()}
         return changed;
     }
 
-    function renderToggle(btn, on) {
-        btn.textContent = on ? '🔴 已标记需复习' : '🔴 需复习';
-        btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-        if (on) btn.classList.add('active');
-        else btn.classList.remove('active');
+    function markMeta(obs, entry) {
+        if (!obs.attempted) return obs.manualWeak ? '手动加入 · 尚未练习' : '尚未练习';
+        var cfg = scoreConfig();
+        var sig = obs.sig || {};
+        var parts = [];
+        if ((sig.time || 0) > cfg.timeLimit) parts.push('思考' + sig.time + '秒');
+        if ((sig.replay || 0) > cfg.replayLimit) parts.push('重听' + sig.replay + '次');
+        if (sig.isTrap && sig.trapAutoRevealed) parts.push('陷阱自动现形');
+        else if (sig.isTrap && !sig.trapCaught) parts.push('陷阱未抓获');
+        var score = (entry && typeof entry.score === 'number') ? entry.score : computeWeakScore(sig, cfg);
+        var head = obs.manualWeak ? '手动 · ' : (score >= cfg.weakThreshold ? '自动 · ' : '自动 · 暂无需复习 · ');
+        return head + (parts.length ? parts.join(' / ') + ' · ' : '') + '生疏分 ' + score;
     }
 
-    function toggleMark(btn) {
-        var card = btn.closest('.card');
-        if (!card) return;
+    function observationForId(id) {
+        var cards = document.querySelectorAll('.card[data-english]');
+        for (var i = 0; i < cards.length; i++) {
+            var obs = collectCardSignals(cards[i]);
+            if (obs && obs.id === id) return obs;
+        }
+        return null;
+    }
+
+    function toggleEntryWeak(id) {
+        if (!id) return;
         var box = loadOutbox();
-        var obs = collectCardSignals(card);
-        if (!obs) return;
-        var prev = box.entries[obs.id] || null;
-        var wasPinned = !!(prev && prev.manualWeak);
-        var on = !wasPinned;
+        var prev = box.entries[id] || null;
+        var obs = observationForId(id);
+        if (!obs) {
+            // 句子已不在本页（例如旧的 Outbox 条目）：直接翻转手动标记
+            if (!prev) return;
+            obs = {
+                id: id,
+                en: prev.en || '',
+                zh: prev.zh || '',
+                isTrap: !!prev.isTrap,
+                trapEn: prev.trapEn || '',
+                sig: prev.sig || { time: 0, replay: 0, mastery: 0, count: 0 },
+                attempted: !!prev.attempted,
+                manualWeak: !!prev.manualWeak,
+                manualAt: prev.manualAt || null
+            };
+        }
+        var on = !(prev && prev.manualWeak);
         var now = new Date().toISOString();
         var entry = mergeObs(prev, obs);
         entry.manualWeak = on;
@@ -307,160 +334,98 @@ ${toBase64Url.toString()}
         entry.score = computeWeakScore(obs.sig, scoreConfig());
         entry.weak = on || entry.score >= scoreConfig().weakThreshold;
         entry.sigHash = signatureOf(entry);
-        box.entries[obs.id] = entry;
+        box.entries[id] = entry;
         saveOutbox();
-        renderToggle(btn, on);
         refreshUi();
-        if (!storageOk) showHint('浏览器本地存储不可用，请尽快复制错题包');
+        if (!storageOk) showHint('浏览器本地存储不可用，请家长尽快复制错题包');
     }
 
-    function ensureToggle(card) {
-        var existing = card.querySelector('.weak-toggle');
-        if (existing) return existing;
-        var row = document.createElement('div');
-        row.className = 'weak-row';
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'weak-toggle';
-        btn.setAttribute('aria-pressed', 'false');
-        btn.addEventListener('click', function (e) {
-            e.preventDefault();
-            e.stopPropagation();
-            toggleMark(btn);
-        });
-        row.appendChild(btn);
-        var energy = card.querySelector('.energy-bar');
-        if (energy && energy.parentNode) energy.parentNode.insertBefore(row, energy.nextSibling);
-        else card.appendChild(row);
-        return btn;
-    }
-
-    function restoreToggles() {
+    function parentListEntries() {
+        var box = loadOutbox();
+        var list = [];
+        var seen = {};
         var cards = document.querySelectorAll('.card[data-english]');
         for (var i = 0; i < cards.length; i++) {
-            var btn = ensureToggle(cards[i]);
             var obs = collectCardSignals(cards[i]);
-            renderToggle(btn, !!(obs && obs.manualWeak));
+            if (!obs || seen[obs.id]) continue;
+            seen[obs.id] = true;
+            list.push({ obs: obs, entry: box.entries[obs.id] || null });
         }
+        for (var id in box.entries) {
+            if (seen[id] || !box.entries[id]) continue;
+            seen[id] = true;
+            list.push({ obs: null, orphan: box.entries[id] });
+        }
+        return list;
     }
 
-    function makeButton(id, text, handler) {
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.id = id;
-        btn.className = 'weak-btn';
-        btn.textContent = text;
-        btn.addEventListener('click', function (e) {
+    function renderMarkRow(item) {
+        var obs = item.obs;
+        var entry = item.entry || item.orphan || null;
+        var id = obs ? obs.id : item.orphan.id;
+
+        var row = document.createElement('div');
+        row.className = 'weak-mark';
+        row.dataset.weakId = id;
+
+        var main = document.createElement('div');
+        main.className = 'weak-mark-main';
+
+        var en = document.createElement('div');
+        en.className = 'weak-mark-en';
+        en.textContent = (obs ? obs.en : item.orphan.en) || '';
+
+        var meta = document.createElement('div');
+        meta.className = 'weak-mark-meta';
+        meta.textContent = obs ? markMeta(obs, entry) : '历史条目 · 生疏分 ' + ((entry && entry.score) || 0);
+
+        main.appendChild(en);
+        main.appendChild(meta);
+        row.appendChild(main);
+
+        var on = !!(entry && entry.manualWeak);
+        var dot = document.createElement('button');
+        dot.type = 'button';
+        dot.className = 'weak-dot' + (on ? ' on' : '');
+        dot.setAttribute('aria-pressed', on ? 'true' : 'false');
+        dot.setAttribute('aria-label', '加入明日复习清单');
+        dot.title = '加入 / 移出明日复习清单';
+        dot.addEventListener('click', function (e) {
             e.preventDefault();
-            handler();
+            toggleEntryWeak(id);
         });
-        return btn;
+        row.appendChild(dot);
+        return row;
     }
 
-    function ensureUi() {
-        if (uiBuilt) return;
-        uiBuilt = true;
-
-        // 新版模板已带完整面板；旧页面/测试环境才动态创建
-        var panel = document.getElementById('weak-panel');
-        if (!panel) {
-            panel = document.createElement('div');
-            panel.id = 'weak-panel';
-            panel.className = 'weak-panel';
-
-            var bar = document.createElement('div');
-            bar.className = 'weak-toolbar';
-            bar.appendChild(makeButton('weak-copy-btn', '📋 复制错题包', copyPack));
-            bar.appendChild(makeButton('weak-save-btn', '💾 下载错题包', downloadPack));
-            bar.appendChild(makeButton('weak-return-btn', '⬅️ 回传生成器', returnToGenerator));
-            panel.appendChild(bar);
-
-            var list = document.createElement('div');
-            list.id = 'weak-list';
-            list.className = 'weak-list hidden';
-            panel.appendChild(list);
-
-            var controls = document.querySelector('.controls');
-            if (controls && controls.parentNode) {
-                controls.parentNode.insertBefore(panel, controls.nextSibling);
-            } else {
-                document.body.insertBefore(panel, document.body.firstChild);
-            }
+    function toggleParentZone(force) {
+        var body = document.getElementById('parent-zone-body');
+        if (!body) return;
+        var open = (typeof force === 'boolean') ? force : body.classList.contains('hidden');
+        if (open) {
+            body.classList.remove('hidden');
+            refreshUi();
+        } else {
+            body.classList.add('hidden');
         }
-
-        if (!document.getElementById('weak-count-btn')) {
-            var countBtn = document.createElement('button');
-            countBtn.type = 'button';
-            countBtn.id = 'weak-count-btn';
-            countBtn.className = 'weak-btn weak-count-btn';
-            countBtn.textContent = '🔁 错题本 (0)';
-            countBtn.addEventListener('click', function (e) {
-                e.preventDefault();
-                toggleList();
-            });
-            var toolbar = panel.querySelector('.weak-toolbar');
-            if (toolbar && toolbar.firstChild) toolbar.insertBefore(countBtn, toolbar.firstChild);
-            else if (toolbar) toolbar.appendChild(countBtn);
-            else panel.insertBefore(countBtn, panel.firstChild);
-        }
-    }
-
-    function toggleList() {
-        var list = document.getElementById('weak-list');
-        if (!list) return;
-        if (list.classList.contains('hidden')) expand();
-        else list.classList.add('hidden');
+        var btn = document.getElementById('parent-zone-toggle');
+        if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
 
     function refreshUi() {
-        var items = collectCandidates();
-        var countBtn = document.getElementById('weak-count-btn');
-        if (countBtn) countBtn.textContent = '🔁 错题本 (' + items.length + ')';
-
-        var list = document.getElementById('weak-list');
+        var list = document.getElementById('weak-mark-list');
         if (!list) return;
         while (list.firstChild) list.removeChild(list.firstChild);
 
+        var items = parentListEntries();
         if (!items.length) {
             var empty = document.createElement('p');
             empty.className = 'weak-empty';
-            empty.textContent = '✨ 今天没有生疏句，太棒了！';
+            empty.textContent = '本页还没有可记录的句子';
             list.appendChild(empty);
             return;
         }
-
-        for (var i = 0; i < items.length; i++) {
-            var entry = items[i];
-            var row = document.createElement('div');
-            row.className = 'weak-item';
-
-            var en = document.createElement('div');
-            en.className = 'weak-item-en';
-            en.textContent = entry.en;
-
-            var meta = document.createElement('div');
-            meta.className = 'weak-item-meta';
-            meta.textContent = (entry.manualWeak ? '🔴 手动 · ' : '') +
-                '生疏分 ' + entry.score + ' · ' + reasonsFor(entry);
-
-            row.appendChild(en);
-            row.appendChild(meta);
-            list.appendChild(row);
-        }
-    }
-
-    function expand() {
-        var items = collectCandidates();
-        var list = document.getElementById('weak-list');
-        if (!list) return;
-        if (!items.length) {
-            refreshUi();
-            list.classList.remove('hidden');
-            return;
-        }
-        list.classList.remove('hidden');
-        refreshUi();
-        if (list.scrollIntoView) list.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        for (var i = 0; i < items.length; i++) list.appendChild(renderMarkRow(items[i]));
     }
 
     function packObject() {
@@ -613,25 +578,18 @@ ${toBase64Url.toString()}
 
     function init() {
         loadOutbox();
-        ensureUi();
-        restoreToggles();
         refreshUi();
         if (!storageOk) {
-            showHint('本地存储不可用，请完成练习后立即复制错题包');
+            showHint('本地存储不可用，请家长在页面底部复制错题包');
         }
-    }
-
-    function toggleCardWeak(btn) {
-        toggleMark(btn);
     }
 
     window.WeakReview = {
         init: init,
         finalize: finalize,
-        expand: expand,
-        toggleList: toggleList,
-        toggleCardWeak: toggleCardWeak,
         refresh: refreshUi,
+        toggleParentZone: toggleParentZone,
+        toggleEntryWeak: toggleEntryWeak,
         reportSection: reportSection,
         packBlock: packBlock,
         copyPack: copyPack,

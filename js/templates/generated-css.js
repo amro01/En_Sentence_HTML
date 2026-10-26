@@ -151,80 +151,76 @@ export const GENERATED_CSS = `
                 @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
                 @keyframes pulse { 0% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; } 50% { text-shadow: 0 0 15px #bf5af2, 0 0 25px #bf5af2, 0 0 35px #bf5af2; } 100% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; } }
                 .moon-glow { animation: pulse 2s infinite; display: inline-block; filter: grayscale(1) brightness(1.5) drop-shadow(0 0 8px #bf5af2); }
-                /* ===== 生疏句循环复习 ===== */
-                .weak-control { flex: 0 0 auto; }
-                .weak-count-btn {
-                    width: 100%;
-                    padding: 8px 10px;
-                    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
-                    color: #9d174d;
-                    border: 1px solid #f9a8d4;
-                    border-radius: 8px;
-                    font-size: 0.95em;
-                    font-weight: 600;
+                /* ===== 家长审计区（默认收起） ===== */
+                .parent-zone { margin: 8px 0 34px; text-align: center; }
+                .parent-zone-toggle {
+                    background: none;
+                    border: none;
+                    color: #c2c8cf;
+                    font-size: 0.78em;
+                    letter-spacing: 0.08em;
+                    padding: 6px 12px;
                     cursor: pointer;
-                    white-space: nowrap;
+                    transition: color 0.2s ease;
                 }
-                .weak-count-btn:hover { background: #fbcfe8; }
-                .weak-panel {
-                    background: #fdf2f8;
-                    border: 1px solid #f9a8d4;
+                .parent-zone-toggle:hover,
+                .parent-zone-toggle:focus-visible { color: #8d97a2; }
+                .parent-zone-body {
+                    margin-top: 8px;
+                    padding: 14px;
+                    background: #fbfbfc;
+                    border: 1px solid #e6e8eb;
                     border-radius: 12px;
-                    padding: 12px;
-                    margin: -10px 0 22px;
+                    text-align: left;
+                    animation: fadeInUp 0.3s ease;
                 }
-                .weak-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+                .parent-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
                 .weak-btn {
                     background: #fff;
-                    color: #9d174d;
-                    border: 1px solid #f9a8d4;
+                    color: #4a5568;
+                    border: 1px solid #dde1e6;
                     border-radius: 999px;
                     padding: 8px 14px;
                     font-size: 0.9em;
                     cursor: pointer;
-                    transition: background 0.2s ease, transform 0.2s ease;
+                    transition: background 0.2s ease, border-color 0.2s ease;
                 }
-                .weak-btn:hover { background: #fce7f3; transform: translateY(-1px); }
-                .weak-list {
-                    margin-top: 10px;
+                .weak-btn:hover { background: #f4f5f7; border-color: #cfd5db; }
+                .parent-hint { color: #98a2ad; font-size: 0.78em; margin: 12px 0 8px; text-align: center; }
+                .weak-mark-list { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; }
+                .weak-mark {
                     display: flex;
-                    flex-direction: column;
-                    gap: 8px;
-                    max-height: 340px;
-                    overflow: auto;
-                }
-                .weak-item {
+                    align-items: flex-start;
+                    gap: 10px;
+                    padding: 8px 10px;
                     background: #fff;
-                    border-left: 4px solid #f472b6;
+                    border: 1px solid #eef0f2;
                     border-radius: 8px;
-                    padding: 10px 12px;
                 }
-                .weak-item-en { color: #831843; font-weight: 600; line-height: 1.45; word-break: break-word; }
-                .weak-item-meta { color: #9d174d; font-size: 0.85em; margin-top: 4px; }
-                .weak-empty { text-align: center; color: #9d174d; margin: 6px 0; }
-                .weak-row { display: flex; justify-content: center; margin-top: 10px; }
-                .weak-toggle {
+                .weak-mark-main { flex: 1; min-width: 0; }
+                .weak-mark-en { color: #3d4a57; font-size: 0.92em; line-height: 1.45; word-break: break-word; }
+                .weak-mark-meta { color: #98a2ad; font-size: 0.76em; margin-top: 3px; }
+                .weak-dot {
+                    flex: 0 0 auto;
+                    width: 16px;
+                    height: 16px;
+                    margin-top: 3px;
+                    padding: 0;
+                    border-radius: 50%;
+                    border: 1px solid #d2d7dc;
                     background: #fff;
-                    color: #be185d;
-                    border: 1px dashed #f9a8d4;
-                    border-radius: 999px;
-                    padding: 6px 12px;
-                    font-size: 0.85em;
                     cursor: pointer;
-                    transition: all 0.2s ease;
+                    transition: background 0.2s ease, border-color 0.2s ease;
                 }
-                .weak-toggle:hover { background: #fdf2f8; }
-                .weak-toggle.active {
-                    background: #fce7f3;
-                    border-style: solid;
-                    box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.15);
-                }
+                .weak-dot:hover { border-color: #aab3bd; }
+                .weak-dot:focus-visible { outline: 2px solid #c3cbd4; outline-offset: 2px; }
+                .weak-dot.on { background: #a9b3bd; border-color: #a9b3bd; }
+                .weak-empty { text-align: center; color: #98a2ad; margin: 6px 0; font-size: 0.85em; }
+                .parent-reset { display: block; text-align: center; margin-top: 14px; color: #c9cfd6; font-size: 0.74em; text-decoration: none; }
+                .parent-reset:hover { color: #9aa4af; }
                 @media (max-width: 768px) {
-                    .weak-toolbar { flex-direction: column; }
+                    .parent-toolbar { flex-direction: column; }
                     .weak-btn { width: 100%; }
-                    .weak-list { max-height: 280px; }
-                }
-                @media (max-width: 480px) {
-                    .weak-count-btn { font-size: 0.85em; }
+                    .weak-mark-list { max-height: 280px; }
                 }
 `;

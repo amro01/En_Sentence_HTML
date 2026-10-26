@@ -33,6 +33,7 @@ test('Practice_ID：卡片输出不含隐藏 input，且保留 class="card" 字�
     assert.ok(cardTemplate.includes('data-zh='));
     assert.ok(cardTemplate.includes('data-weak-id='));
     assert.ok(cardTemplate.includes('data-review-count='));
-    assert.ok(cardTemplate.includes('WeakReview.toggleCardWeak'));
+    assert.ok(!cardTemplate.includes('weak-toggle'), '卡片不应再出现手动复习按钮');
+    assert.ok(!cardTemplate.includes('需复习'), '卡片不应出现负面标签字样');
     assert.ok(!cardTemplate.includes('<input'), '练习卡片模板不应新增 input');
 });

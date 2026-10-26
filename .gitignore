@@ -1,2 +1,25 @@
-# 测试网页等
-plans/
+# 依赖与包管理
+node_modules/
+package-lock.json
+
+# 系统与编辑器配置
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 日志
+*.log
+
+# 保护隐私：忽略本地测试生成的个人练习 HTML 和下载的勋章 TXT
+# （保留根目录 index.html 和 package.json）
+*.txt
+*.html
+!index.html
+*.json
+!package.json
+
+# 测试产物
+coverage/

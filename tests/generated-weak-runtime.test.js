@@ -45,6 +45,14 @@ class FakeElement {
         this._listeners = {};
     }
 
+    get className() {
+        return Array.from(this.classList.set).join(' ');
+    }
+
+    set className(value) {
+        this.classList.set = new Set(String(value || '').split(/\s+/).filter(Boolean));
+    }
+
     appendChild(child) {
         child.parentNode = this;
         this.children.push(child);
@@ -171,6 +179,38 @@ function createEnvironment(options) {
         cards.push(trapCard);
     }
 
+    // 生成页模板中的「家长审计区」：默认收起，孩子端不可见
+    const zone = new FakeElement('div');
+    zone.id = 'parent-zone';
+    zone.className = 'parent-zone';
+
+    const zoneToggle = new FakeElement('button');
+    zoneToggle.type = 'button';
+    zoneToggle.id = 'parent-zone-toggle';
+    zoneToggle.className = 'parent-zone-toggle';
+    zoneToggle.setAttribute('aria-expanded', 'false');
+
+    const zoneBody = new FakeElement('div');
+    zoneBody.id = 'parent-zone-body';
+    zoneBody.className = 'parent-zone-body hidden';
+
+    const markList = new FakeElement('div');
+    markList.id = 'weak-mark-list';
+    markList.className = 'weak-mark-list';
+
+    const copyBtn = new FakeElement('button');
+    copyBtn.id = 'weak-copy-btn';
+    const saveBtn = new FakeElement('button');
+    saveBtn.id = 'weak-save-btn';
+    const returnBtn = new FakeElement('button');
+    returnBtn.id = 'weak-return-btn';
+
+    zoneBody.appendChild(markList);
+    zone.appendChild(zoneToggle);
+    zone.appendChild(zoneBody);
+    body.appendChild(zone);
+    created.push(zone, zoneToggle, zoneBody, markList, copyBtn, saveBtn, returnBtn);
+
     const document = {
         body,
         createElement(tagName) {
@@ -192,31 +232,6 @@ function createEnvironment(options) {
         addEventListener() {},
         execCommand() { return true; }
     };
-
-    if (config.templateUi) {
-        const panel = new FakeElement('div');
-        panel.id = 'weak-panel';
-        panel.className = 'weak-panel';
-
-        const toolbar = new FakeElement('div');
-        toolbar.className = 'weak-toolbar';
-        panel.appendChild(toolbar);
-
-        const list = new FakeElement('div');
-        list.id = 'weak-list';
-        list.className = 'weak-list hidden';
-        panel.appendChild(list);
-
-        const count = new FakeElement('button');
-        count.type = 'button';
-        count.id = 'weak-count-btn';
-        count.className = 'weak-btn weak-count-btn';
-        count.textContent = '🔁 错题本 (0)';
-        controls.appendChild(count);
-
-        created.push(panel, toolbar, list, count);
-        body.appendChild(panel);
-    }
 
     const stats = {};
     const traps = {};
@@ -285,22 +300,34 @@ const ID = sentenceId(EN);
  *  运行时行为
  * ============================================================ */
 
-test('运行时：初始化不污染全局，只暴露 WeakReview', () => {
+test('运行时：初始化只暴露 WeakReview，孩子端卡片无任何标记控件', () => {
     const env = createEnvironment();
     assert.equal(typeof env.WeakReview, 'object');
     assert.equal(typeof env.WeakReview.init, 'function');
 
     env.WeakReview.init();
 
-    const toggle = env.card.querySelector('.weak-toggle');
-    assert.ok(toggle);
-    assert.equal(toggle.textContent, '🔴 需复习');
-    assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+    assert.equal(env.card.querySelector('.weak-toggle'), null);
+    assert.equal(env.card.querySelector('.weak-dot'), null, '卡片正面不得出现复习标记');
 
-    const toolbar = env.WeakReview.getOutbox();
-    assert.equal(toolbar.practiceId, 'STATS_TEST');
-    assert.equal(Object.keys(toolbar.entries).length, 0);
+    const outbox = env.WeakReview.getOutbox();
+    assert.equal(outbox.practiceId, 'STATS_TEST');
+    assert.equal(Object.keys(outbox.entries).length, 0);
     assert.ok(env.hints.length === 0);
+
+    // 家长审计区默认收起，点开后才露出结算清单
+    const panel = env.document.getElementById('parent-zone-body');
+    const toggle = env.document.getElementById('parent-zone-toggle');
+    assert.ok(panel.classList.contains('hidden'));
+    assert.equal(toggle.getAttribute('aria-expanded'), 'false');
+
+    env.WeakReview.toggleParentZone();
+    assert.ok(!panel.classList.contains('hidden'));
+    assert.equal(toggle.getAttribute('aria-expanded'), 'true');
+    assert.equal(env.document.getElementById('weak-mark-list').children.length, 1);
+
+    env.WeakReview.toggleParentZone();
+    assert.ok(panel.classList.contains('hidden'));
 });
 
 test('运行时：结算写入 Outbox，包含生疏句与低分通过', () => {
@@ -324,21 +351,27 @@ test('运行时：结算写入 Outbox，包含生疏句与低分通过', () => {
     assert.equal(entry.attempted, true);
     assert.equal(entry.manualWeak, false);
 
-    const countBtn = env.document.getElementById('weak-count-btn');
-    assert.ok(countBtn);
-    assert.equal(countBtn.textContent, '🔁 错题本 (1)');
+    const row = env.document.getElementById('weak-mark-list').children[0];
+    assert.ok(row);
+    assert.equal(row.querySelector('.weak-mark-en').textContent, EN);
+    assert.match(row.querySelector('.weak-mark-meta').textContent, /思考20秒/);
+    assert.match(row.querySelector('.weak-mark-meta').textContent, /生疏分 46/);
+    const dot = row.querySelector('.weak-dot');
+    assert.ok(dot);
+    assert.ok(!dot.classList.contains('on'));
+    assert.equal(dot.getAttribute('aria-label'), '加入明日复习清单');
 });
 
-test('运行时：手动打标/取消，报告与错题包同步', async () => {
+test('运行时：结算清单手动打标/取消，报告与错题包同步', async () => {
     const env = createEnvironment();
     env.WeakReview.init();
     env.stats[EN] = { time: 20, replay: 2, mastery_count: 1, count: 1 };
     env.WeakReview.finalize('claim');
 
-    const toggle = env.card.querySelector('.weak-toggle');
-    toggle.dispatch('click');
-    assert.equal(toggle.textContent, '🔴 已标记需复习');
-    assert.equal(toggle.getAttribute('aria-pressed'), 'true');
+    env.WeakReview.toggleEntryWeak(ID);
+    let dot = env.document.getElementById('weak-mark-list').children[0].querySelector('.weak-dot');
+    assert.ok(dot.classList.contains('on'));
+    assert.equal(dot.getAttribute('aria-pressed'), 'true');
     assert.equal(env.WeakReview.getOutbox().entries[ID].manualWeak, true);
 
     const report = env.WeakReview.reportSection();
@@ -356,8 +389,9 @@ test('运行时：手动打标/取消，报告与错题包同步', async () => {
     assert.match(block, /--- WEAK-PACK v1 ---/);
     assert.match(block, /--- END WEAK-PACK ---/);
 
-    toggle.dispatch('click');
-    assert.equal(toggle.textContent, '🔴 需复习');
+    env.WeakReview.toggleEntryWeak(ID);
+    dot = env.document.getElementById('weak-mark-list').children[0].querySelector('.weak-dot');
+    assert.ok(!dot.classList.contains('on'));
     assert.equal(env.WeakReview.getOutbox().entries[ID].manualWeak, false);
     const after = decodePack(await (async () => {
         await env.WeakReview.copyPack();
@@ -397,10 +431,9 @@ test('运行时：清理 Outbox 后不残留条目', () => {
 test('运行时：未练习也能回传“解除标记”', async () => {
     const env = createEnvironment();
     env.WeakReview.init();
-    const toggle = env.card.querySelector('.weak-toggle');
 
-    toggle.dispatch('click');
-    toggle.dispatch('click');
+    env.WeakReview.toggleEntryWeak(ID);
+    env.WeakReview.toggleEntryWeak(ID);
 
     const entry = env.WeakReview.getOutbox().entries[ID];
     assert.ok(entry);
@@ -439,18 +472,20 @@ test('运行时：陷阱统计跨错误键/正确键合并', () => {
     assert.equal(entry.sig.trapCaught, true);
 });
 
-test('运行时：模板已有面板时不重复创建', () => {
-    const env = createEnvironment({ templateUi: true });
+test('运行时：不动态创建顶部错题本按钮，标记只在家长清单内', () => {
+    const env = createEnvironment();
     env.WeakReview.init();
 
-    assert.equal(env.created.filter(el => el.id === 'weak-panel').length, 1);
-    assert.equal(env.created.filter(el => el.id === 'weak-count-btn').length, 1);
-    assert.ok(env.document.getElementById('weak-list'));
+    assert.equal(env.created.filter(el => el.id === 'weak-panel').length, 0);
+    assert.equal(env.created.filter(el => el.id === 'weak-count-btn').length, 0);
 
-    const count = env.document.getElementById('weak-count-btn');
-    assert.equal(count.textContent, '🔁 错题本 (0)');
+    const list = env.document.getElementById('weak-mark-list');
+    assert.equal(list.children.length, 1);
+    const dot = list.children[0].querySelector('.weak-dot');
+    assert.ok(dot);
+    assert.equal(dot.textContent, '', '标记控件应为无文字的圆点');
 
     env.stats[EN] = { time: 20, replay: 2, mastery_count: 1, count: 1 };
     env.WeakReview.finalize('claim');
-    assert.equal(count.textContent, '🔁 错题本 (1)');
+    assert.match(list.children[0].querySelector('.weak-mark-meta').textContent, /生疏分 46/);
 });

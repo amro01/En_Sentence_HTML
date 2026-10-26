@@ -309,9 +309,6 @@ function generatePage() {
                             <span class="ear-icon">🎧</span>
                             <span class="ear-icon">🎧</span>
                         </div>
-                        <div class="weak-row">
-                            <button type="button" class="weak-toggle" aria-pressed="false" onclick="WeakReview.toggleCardWeak(this)">🔴 需复习</button>
-                        </div>
                     </div>
                 `;
             }

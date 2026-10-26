@@ -1146,7 +1146,6 @@ ${WEAK_RUNTIME_SOURCE}
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     starDisplayEl.scrollIntoView({ behavior: 'smooth' });
-                    try { WeakReview.expand(); } catch (e) { /* ignore */ }
                 }
 
                 function resetChallenge() {
