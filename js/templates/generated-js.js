@@ -10,21 +10,27 @@
  * ====================================================================
  */
 
+import { WEAK_RUNTIME_SOURCE } from './generated-weak.js';
+
 export function buildGeneratedJS(config) {
+    const jsLiteral = (value) => JSON.stringify(value === undefined ? null : value).replace(/</g, '\\u003c');
     return `
                 // --- 从生成器注入的配置 ---
                 const CONFIG = {
-                    childName: "${config.childName}",
-                    practiceId: "${config.practiceId}",
-                    replayLimit: ${config.replayLimit},
-                    timeLimit: ${config.timeLimit},
-                    masteryThreshold: ${config.masteryThreshold},
-                    detectiveChances: ${config.detectiveChances},
-                    trapCount: ${config.trapCount},
-                    trapData: ${JSON.stringify(config.trapData)},
-                    parentLockEnabled: ${config.parentLockEnabled},
-                    parentPasscode: "${config.parentPasscode || ''}",
-                    totalSentences: ${config.totalSentences}
+                    childName: ${jsLiteral(config.childName)},
+                    practiceId: ${jsLiteral(config.practiceId)},
+                    replayLimit: ${Number(config.replayLimit) || 3},
+                    timeLimit: ${Number(config.timeLimit) || 15},
+                    masteryThreshold: ${Number(config.masteryThreshold) || 3},
+                    detectiveChances: ${Number(config.detectiveChances) || 0},
+                    trapCount: ${Number(config.trapCount) || 0},
+                    trapData: ${jsLiteral(config.trapData || [])},
+                    parentLockEnabled: ${config.parentLockEnabled ? 'true' : 'false'},
+                    parentPasscode: ${jsLiteral(config.parentPasscode || '')},
+                    totalSentences: ${Number(config.totalSentences) || 0},
+                    generatorUrl: ${jsLiteral(config.generatorUrl || '')},
+                    weakThreshold: ${Number(config.weakThreshold) || 40},
+                    fastThreshold: ${Number(config.fastThreshold) || 22}
                 };
 
                 // --- 中英教材常见角色性别字典 ---
@@ -397,6 +403,14 @@ const detSummaryEl = document.getElementById('detective-summary');
                     setTimeout(() => el.remove(), 2200);
                 }
 
+${WEAK_RUNTIME_SOURCE}
+
+                // --- Escape diff words before they are inserted as HTML ---
+                function escapeDiffWord(value) {
+                    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+                    return String(value).replace(/[&<>"']/g, ch => map[ch]);
+                }
+
                 // --- Compute diff between wrong and correct text using word-level LCS ---
                 function computeDiff(wrongText, correctText) {
                     const a = wrongText.split(/\\s+/);
@@ -431,10 +445,11 @@ const detSummaryEl = document.getElementById('detective-summary');
                     ops.reverse();
                     
                     return ops.map(op => {
+                        const word = escapeDiffWord(op.word);
                         switch (op.type) {
-                            case 'same': return op.word;
-                            case 'del':  return '<span class="diff-del">' + op.word + '</span>';
-                            case 'ins':  return '<span class="diff-ins">' + op.word + '</span>';
+                            case 'same': return word;
+                            case 'del':  return '<span class="diff-del">' + word + '</span>';
+                            case 'ins':  return '<span class="diff-ins">' + word + '</span>';
                         }
                     }).join(' ');
                 }
@@ -1016,6 +1031,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                         const item = getStats()[key];
                         report += '  ' + key + ' -> 思考' + item.time + '秒, 重听' + item.replay + '次, 练习' + item.count + '次, 打磨' + (item.mastery_count || 0) + '次\\n';
                     }
+                    try { report += WeakReview.reportSection(); } catch (e) { /* ignore */ }
                     // === 家长审计数据（不会被重置清除） ===
                     report += '\\n--- 家长审计数据（不会被重置清除） ---\\n';
                     const firstTry = loadFirstTrySnapshot();
@@ -1042,6 +1058,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     if (meta.lastResetAt) {
                         report += '  上次重置时间: ' + meta.lastResetAt + '\\n';
                     }
+                    try { report += WeakReview.packBlock(); } catch (e) { /* ignore */ }
                     return report;
                 }
 
@@ -1065,6 +1082,9 @@ const detSummaryEl = document.getElementById('detective-summary');
                         alert('🚨 警报！有潜伏的错误逃脱了你的法眼！再仔细检查一下那些无法积攒能量（耳机不亮）的句子吧！');
                         return;
                     }
+
+                    // 把本次练习的观察写入 Outbox（生疏句 + 低分通过都保留）
+                    try { WeakReview.finalize('claim'); } catch (e) { /* ignore */ }
 
                     // 尝试捕获首次快照（如果尚未捕获）
                     tryCaptureFirstTry();
@@ -1126,6 +1146,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     starDisplayEl.scrollIntoView({ behavior: 'smooth' });
+                    try { WeakReview.expand(); } catch (e) { /* ignore */ }
                 }
 
                 function resetChallenge() {
@@ -1144,6 +1165,8 @@ const detSummaryEl = document.getElementById('detective-summary');
                     saveMetaData(meta);
 
                     if (confirm('宝贝，准备好清空记录，重新冲击 6 枚月亮了吗？')) {
+                        // 重置前先落盘本次观察，避免丢失生疏数据
+                        try { WeakReview.finalize('reset'); } catch (e) { /* ignore */ }
                         // ① 清空内存中的 appState，防止在页面卸载前被任何异步回调（如语音 onend）重新保存旧数据
                         Object.assign(appState, getDefaultAppState());
                         // ② 取消正在播放的语音合成，阻止 onend 回调触发 saveAppState()
@@ -1165,6 +1188,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                         localStorage.removeItem(CONFIG.practiceId);
                         localStorage.removeItem(getFirstTryKey());
                         localStorage.removeItem(getMetaKey());
+                        try { WeakReview.clearOutbox(); } catch (e) { /* ignore */ }
                         location.reload();
                     }
                 }
@@ -1266,6 +1290,9 @@ const detSummaryEl = document.getElementById('detective-summary');
 
                     // Step 3: Init detective mode (chance bar, icons, click handlers)
                     initDetectiveMode();
+
+                    // Step 4: Init weak-sentence toolbar / manual marks
+                    try { WeakReview.init(); } catch (e) { /* ignore */ }
                 }
 
                 if (document.readyState === 'loading') {

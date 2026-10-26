@@ -290,3 +290,166 @@ button.btn-primary:hover {
     color: #666;
     margin: 5px 0 0 0;
 }
+
+/* ===== 生疏句循环复习面板 ===== */
+.weak-settings {
+    background: #fdf2f8;
+    border: 1px solid #f9a8d4;
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 10px;
+}
+.weak-settings h3 { color: #9d174d; margin-top: 0; }
+.weak-overview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.weak-stat {
+    background: #fff;
+    border: 1px solid #fbcfe8;
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-size: 0.85em;
+    color: #9d174d;
+}
+.weak-stat b { color: #be185d; }
+.weak-mini-btn {
+    background: #fff;
+    border: 1px solid #f9a8d4;
+    color: #9d174d;
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.8em;
+    cursor: pointer;
+    margin: 0;
+}
+.weak-mini-btn:hover { background: #fce7f3; opacity: 1; }
+.weak-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: flex-end;
+    margin-bottom: 10px;
+}
+.weak-controls label {
+    font-size: 0.8em;
+    color: #6b7280;
+    font-weight: normal;
+    margin: 0;
+}
+.weak-controls select,
+.weak-controls input {
+    padding: 6px 8px;
+    font-size: 0.85em;
+    border: 1px solid #fbcfe8;
+    border-radius: 6px;
+    margin: 4px 0 0;
+    width: auto;
+}
+.weak-controls input[type="number"] { width: 70px; }
+.weak-primary {
+    background: linear-gradient(135deg, #f472b6, #ec4899);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 9px 14px;
+    font-size: 0.85em;
+    cursor: pointer;
+    margin: 0;
+}
+.weak-primary:hover { opacity: 0.9; }
+.weak-secondary {
+    background: #fff;
+    color: #9d174d;
+    border: 1px solid #f9a8d4;
+    border-radius: 8px;
+    padding: 9px 12px;
+    font-size: 0.85em;
+    cursor: pointer;
+    margin: 0;
+}
+.weak-secondary:hover { background: #fce7f3; opacity: 1; }
+.weak-import {
+    background: #fff;
+    border: 1px dashed #f9a8d4;
+    border-radius: 8px;
+    padding: 10px;
+    margin: 10px 0;
+}
+.weak-import summary { cursor: pointer; color: #9d174d; font-size: 0.9em; }
+.weak-import textarea {
+    min-height: 70px;
+    margin-top: 8px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 0.8em;
+}
+.weak-import-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.weak-import-row input[type="file"] { width: auto; padding: 6px; font-size: 0.8em; }
+.weak-manual { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.weak-manual input { flex: 1 1 160px; padding: 8px; font-size: 0.85em; margin: 0; }
+.weak-list { display: flex; flex-direction: column; gap: 8px; max-height: 420px; overflow: auto; }
+.weak-entry {
+    background: #fff;
+    border: 1px solid #fce7f3;
+    border-left: 4px solid #f472b6;
+    border-radius: 8px;
+    padding: 10px;
+}
+.weak-entry.selected { box-shadow: 0 0 0 2px rgba(236, 72, 153, 0.2); }
+.weak-entry-head { display: flex; gap: 8px; align-items: flex-start; }
+.weak-entry-check { width: auto; margin: 4px 0 0; padding: 0; transform: scale(1.2); flex: 0 0 auto; }
+.weak-entry-main { flex: 1; min-width: 0; }
+.weak-entry-en { font-weight: 600; color: #831843; font-size: 0.95em; word-break: break-word; }
+.weak-entry-zh { color: #6b7280; font-size: 0.85em; margin-top: 2px; word-break: break-word; }
+.weak-entry-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.weak-entry-reason { color: #9ca3af; font-size: 0.78em; margin-top: 4px; }
+.weak-chip {
+    background: #fdf2f8;
+    color: #9d174d;
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: 0.75em;
+    white-space: nowrap;
+}
+.weak-chip.manual { background: #fee2e2; color: #b91c1c; }
+.weak-chip.trap { background: #f3e8ff; color: #7c3aed; }
+.weak-chip.due { background: #fef3c7; color: #92400e; }
+.weak-chip.graduated { background: #dcfce7; color: #166534; }
+.weak-entry-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.weak-entry-actions button {
+    font-size: 0.75em;
+    padding: 5px 9px;
+    border-radius: 6px;
+    border: 1px solid #fbcfe8;
+    background: #fff;
+    color: #9d174d;
+    cursor: pointer;
+    margin: 0;
+}
+.weak-entry-actions button:hover { background: #fce7f3; opacity: 1; }
+.weak-entry-actions button.danger { color: #b91c1c; border-color: #fecaca; }
+.weak-entry-actions button.danger:hover { background: #fee2e2; }
+.weak-hint { font-size: 0.8em; color: #9d174d; min-height: 1.2em; margin: 8px 0 0; }
+.weak-empty { text-align: center; color: #9ca3af; padding: 16px; }
+
+@media (max-width: 768px) {
+    .weak-controls,
+    .weak-manual { flex-direction: column; align-items: stretch; }
+    .weak-controls input[type="number"] { width: auto; }
+    .weak-list { max-height: 320px; }
+    .weak-mini-btn { flex: 1 1 auto; }
+}
+
+.weak-badge {
+    display: inline-block;
+    background: #fce7f3;
+    color: #9d174d;
+    border: 1px solid #f9a8d4;
+    border-radius: 999px;
+    padding: 2px 9px;
+    font-size: 0.75em;
+    margin-bottom: 8px;
+}

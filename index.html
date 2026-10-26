@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 v2.2 dev.3 </title>
+    <title>练习网页生成器 v2.2（生疏句智能循环复习版）</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h2>练习网页生成器 v2.2 dev.3 </h2>
+        <h2>练习网页生成器 v2.2（生疏句智能循环复习版）</h2>
 
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
@@ -20,27 +20,7 @@
 
         <div class="card-form">
             <h3>2. 添加练习卡片 (可排序调整)</h3>
-            <div id="cardsContainer">
-                <div class="card-item">
-                    <div class="sort-buttons">
-                        <button type="button" class="sort-btn up" onclick="moveCardUp(this)" title="向上移动">↑</button>
-                        <button type="button" class="sort-btn down" onclick="moveCardDown(this)" title="向下移动">↓</button>
-                    </div>
-                    <div class="card-content">
-                        <textarea class="english-input" placeholder="英文段落 (支持多行及 M:/F: 角色标记)"></textarea>
-                        <textarea class="chinese-input" placeholder="中文翻译"></textarea>
-                        <div class="trap-checkbox-row">
-                            <input type="checkbox" class="trap-checkbox" onchange="onTrapToggle(this)">
-                            <label>🕵️ 设为陷阱句</label>
-                        </div>
-                        <div class="trap-extra-field">
-                            <label class="trap-label">正确的对照英文 (系统判分用)</label>
-                            <textarea class="correct-english-input" placeholder="此处输入正确的英文对照文本"></textarea>
-                        </div>
-                        <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
-                    </div>
-                </div>
-            </div>
+            <div id="cardsContainer"></div>
             <button onclick="addCard()">添加卡片</button>
             <button onclick="addExplanationBox()" class="btn-amber">添加说明框</button>
         </div>
@@ -63,8 +43,13 @@
             </div>
         </div>
 
+        <div class="card-form weak-settings">
+            <h3>5. 🔁 生疏句循环复习</h3>
+            <div id="weakPanel"></div>
+        </div>
+
         <div class="card-form" style="background:#fff3e0;border:1px solid #ffb74d;">
-            <h3>5. 🔒 家长审计设置 (防刷分/作弊)</h3>
+            <h3>6. 🔒 家长审计设置 (防刷分/作弊)</h3>
             <div class="form-group">
                 <label>
                     <input type="checkbox" id="enableParentLock" checked>
@@ -82,7 +67,7 @@
         <button onclick="generatePage()" class="btn-primary" style="background: #2196F3;">生成练习网页</button>
 
         <div class="output-area">
-            <h3>6. 生成结果</h3>
+            <h3>7. 生成结果</h3>
             <textarea id="outputCode" rows="10" readonly></textarea>
             <button onclick="downloadPage()">下载HTML文件</button>
         </div>
@@ -95,7 +80,8 @@
         <p><strong>🎤 多角色朗读</strong> — 英文中用 <code>M: Hello!</code> 或 <code>Wang Mei：你好</code> 格式标记角色，朗读时自动匹配男/女声。支持 M(男)、F/Wang Mei/Jenny/Amy 等(女)、Li Ming/Tom/Jack 等(男)。</p>
         <p><strong>⭐ 评价与勋章</strong> — 🎧 每完整听一次点亮一个耳机图标，满 3 个卡片变金色；⭐ 思考达标 或 打磨≥3 次之一即可获五星；🌙 所有句子在半速内完成且重听≤1 次获 6 月亮；🧹 点击"清空记录"重新挑战。</p>
         <p><strong>🕵️ 侦探模式</strong> — 勾选"设为陷阱句"后，孩子找出故意写错的句子；🔍 点击英文即"举报"，成功抓获得纸屑庆祝，误报扣除机会。</p>
-        <p><strong>🔒 家长审计（v3.0新增）</strong> — 启用家长锁后，重置需数学验证；系统自动记录首轮测试快照和重置次数，生成勋章时强制附加家长审计数据；思考时间<0.5秒触发异常标记，<1.0秒无法获得6月亮评价。</p>
+        <p><strong>🔁 生疏句循环复习</strong> — 练习页可点单句「🔴 需复习」手动标记，结算时自动判弱并生成错题包；第二天在生成器点「一键填入到期复习」，或把错题包复制/回传/导入。连续 2 次快速通过自动毕业，避免无限堆积。</p>
+        <p><strong>🔒 家长审计</strong> — 启用家长锁后，重置需数学验证；系统自动记录首轮测试快照和重置次数，生成勋章时强制附加家长审计数据；思考时间<0.5秒触发异常标记，<1.0秒无法获得6月亮评价。</p>
         <p><strong>📦 生成与下载</strong> — 点击"生成练习网页"预览代码，点击"下载 HTML 文件"保存为独立网页。</p>
     </div>
 

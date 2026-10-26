@@ -11,6 +11,45 @@
  */
 
 import { buildGeneratedHTML } from './templates/generated-html.js';
+import { WEAK_DEFAULTS, sentenceId } from './weak/weak-core.js';
+import { computePracticeId } from './weak/practice-id.js';
+import { initWeakPanel } from './weak/weak-panel.js';
+import { recordServed } from './weak/weak-store.js';
+
+const HTML_ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+
+function escapeHTML(text) {
+    return String(text == null ? '' : text).replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
+}
+
+function getChildName() {
+    const input = document.getElementById('childName');
+    return (input && input.value.trim()) || '宝贝';
+}
+
+function targetEnglishOf(card) {
+    const trap = card.querySelector('.trap-checkbox');
+    const english = card.querySelector('.english-input');
+    const correct = card.querySelector('.correct-english-input');
+    if (trap && trap.checked && correct && correct.value.trim()) return correct.value;
+    return english ? english.value : '';
+}
+
+function getExistingIds() {
+    return [...document.querySelectorAll('#cardsContainer .card-item:not(.explanation-item)')]
+        .map(targetEnglishOf)
+        .map(value => String(value || '').trim())
+        .filter(Boolean)
+        .map(sentenceId);
+}
+
+function clearCards() {
+    document.querySelectorAll('#cardsContainer .card-item:not(.explanation-item)')
+        .forEach(card => card.remove());
+    if (window.updateDetectiveChances) window.updateDetectiveChances();
+}
+
+let weakPanel = null;
 
 // --- Auto-populate Date & Card Management ---
 (function() {
@@ -45,20 +84,35 @@ import { buildGeneratedHTML } from './templates/generated-html.js';
         chancesInput.value = expected;
     };
 
-    window.addCard = function() {
+    window.addCard = function(options) {
+        createCard(options || {});
+    };
+
+    function createCard(options) {
         const newCard = document.createElement('div');
         newCard.className = 'card-item';
-        
+
+        const weak = options.weak && /^[0-9a-f]{16}$/.test(String(options.weak.id || ''))
+            ? options.weak
+            : null;
+        const reviewCount = weak ? Math.max(0, parseInt(weak.reviewCount, 10) || 0) : 0;
+        if (weak) {
+            newCard.dataset.weakId = weak.id;
+            newCard.dataset.reviewCount = String(reviewCount);
+        }
+
         const sortButtons = document.createElement('div');
         sortButtons.className = 'sort-buttons';
         sortButtons.innerHTML = `
             <button type="button" class="sort-btn up" onclick="moveCardUp(this)" title="向上移动">↑</button>
             <button type="button" class="sort-btn down" onclick="moveCardDown(this)" title="向下移动">↓</button>
         `;
-        
+
         const cardContent = document.createElement('div');
         cardContent.className = 'card-content';
+        const reviewLabel = weak && reviewCount > 0 ? ' · 第' + reviewCount + '次' : '';
         cardContent.innerHTML = `
+            ${weak ? `<div class="weak-badge">🔁 复习句${reviewLabel}</div>` : ''}
             <label class="eng-label">英文段落 (支持多行及 M:/F: 角色标记)</label>
             <textarea class="english-input" placeholder="英文段落 (支持多行及 M:/F: 角色标记)"></textarea>
             <textarea class="chinese-input" placeholder="中文翻译"></textarea>
@@ -72,13 +126,26 @@ import { buildGeneratedHTML } from './templates/generated-html.js';
             </div>
             <button type="button" class="delete-card-btn" onclick="deleteCard(this)">删除此条</button>
         `;
-        
+
         newCard.appendChild(sortButtons);
         newCard.appendChild(cardContent);
         cardsContainer.appendChild(newCard);
-        
+
+        const englishInput = newCard.querySelector('.english-input');
+        const chineseInput = newCard.querySelector('.chinese-input');
+        if (options.en != null) englishInput.value = String(options.en);
+        if (options.zh != null) chineseInput.value = String(options.zh);
+
+        if (options.isTrap) {
+            const trapCheckbox = newCard.querySelector('.trap-checkbox');
+            const correctInput = newCard.querySelector('.correct-english-input');
+            trapCheckbox.checked = true;
+            if (options.correctEn != null) correctInput.value = String(options.correctEn);
+            window.onTrapToggle(trapCheckbox);
+        }
+
         updateAllSortButtons();
-    };
+    }
     
     window.addExplanationBox = function() {
        const newBox = document.createElement('div');
@@ -148,21 +215,8 @@ import { buildGeneratedHTML } from './templates/generated-html.js';
         });
     }
 
-    // Add label to initial card
-    const initialCard = document.querySelector('#cardsContainer .card-item');
-    if (initialCard) {
-        const content = initialCard.querySelector('.card-content');
-        const firstTextarea = content.querySelector('textarea');
-        if (firstTextarea) {
-            const label = document.createElement('label');
-            label.className = 'eng-label';
-            label.textContent = '英文段落 (支持多行及 M:/F: 角色标记)';
-            content.insertBefore(label, firstTextarea);
-            firstTextarea.className = 'english-input';
-            const secondTA = firstTextarea.nextElementSibling;
-            if (secondTA) secondTA.className = 'chinese-input';
-        }
-    }
+    // 首张卡片统一由工厂创建，避免两套 markup
+    window.addCard();
 })();
 
 // Cached DOM references for generatePage and downloadPage
@@ -181,19 +235,14 @@ function generatePage() {
     const parentPasscode = document.getElementById('parentPasscode')?.value || '';
     const cards = document.querySelectorAll('#cardsContainer .card-item');
     
-    let contentHash = 0;
+    // 只收集卡片内的 input/textarea 值；data-* 属性与按钮不参与 Practice_ID
+    const values = [];
     cards.forEach(card => {
-        const inputs = card.querySelectorAll('input, textarea');
-        inputs.forEach(input => {
-            const val = input.value || '';
-            for (let i = 0; i < val.length; i++) {
-                contentHash = ((contentHash << 5) - contentHash) + val.charCodeAt(i);
-                contentHash |= 0;
-            }
+        card.querySelectorAll('input, textarea').forEach(input => {
+            values.push(input.value || '');
         });
     });
-    const cleanDate = date.replace(/[^0-9]/g, '');
-    const practiceId = 'STATS_' + cleanDate + '_' + Math.abs(contentHash).toString(36);
+    const practiceId = computePracticeId(date, values);
 
     // Collect trap data
     const trapData = [];
@@ -220,10 +269,21 @@ function generatePage() {
             const correctEnglish = correctEnglishInput ? correctEnglishInput.value : '';
             
             if (englishText.trim() !== '') {
+                const targetEn = isTrap && correctEnglish.trim() ? correctEnglish : englishText;
+                if (card.dataset.weakId) {
+                    // 句子被编辑后旧生疏身份失效，避免把复习次数记到别的句子
+                    if (sentenceId(targetEn) !== card.dataset.weakId) {
+                        card.dataset.weakId = '';
+                        card.dataset.reviewCount = '0';
+                    }
+                }
+                const weakId = /^[0-9a-f]{16}$/.test(card.dataset.weakId || '') ? card.dataset.weakId : '';
+                const reviewCount = Math.max(0, parseInt(card.dataset.reviewCount || '0', 10) || 0);
                 const encodedEnglish = encodeURIComponent(englishText);
+                const encodedZh = encodeURIComponent(chineseText);
                 const encodedCorrect = encodeURIComponent(isTrap && correctEnglish.trim() ? correctEnglish : '');
-                const englishDisplay = englishText.replace(/\n/g, '<br>');
-                const chineseDisplay = chineseText.replace(/\n/g, '<br>');
+                const englishDisplay = escapeHTML(englishText).replace(/\n/g, '<br>');
+                const chineseDisplay = escapeHTML(chineseText).replace(/\n/g, '<br>');
                 const englishElementId = `english-${index}`;
                 
                 if (isTrap && correctEnglish.trim()) {
@@ -234,7 +294,7 @@ function generatePage() {
                 const trapAttr = isTrap ? ` data-trap="true" data-correct="${encodedCorrect}"` : '';
                 
                 cardsHTML += `
-                    <div class="card" data-english="${encodedEnglish}" data-card-index="${index}"${trapAttr}>
+                    <div class="card" data-english="${encodedEnglish}" data-zh="${encodedZh}" data-card-index="${index}" data-weak-id="${weakId}" data-review-count="${reviewCount}"${trapAttr}>
                         <div class="content">
                             <div class="chinese" onclick="revealChinese(this)" title="点击看中文">
                                 ${chineseDisplay}
@@ -248,6 +308,9 @@ function generatePage() {
                             <span class="ear-icon">🎧</span>
                             <span class="ear-icon">🎧</span>
                             <span class="ear-icon">🎧</span>
+                        </div>
+                        <div class="weak-row">
+                            <button type="button" class="weak-toggle" aria-pressed="false" onclick="WeakReview.toggleCardWeak(this)">🔴 需复习</button>
                         </div>
                     </div>
                 `;
@@ -272,7 +335,10 @@ function generatePage() {
         trapCount,
         trapData,
         parentLockEnabled,
-        parentPasscode
+        parentPasscode,
+        generatorUrl: location.href.split('#')[0],
+        weakThreshold: WEAK_DEFAULTS.weakThreshold,
+        fastThreshold: WEAK_DEFAULTS.fastThreshold
     });
 
     outputCodeEl.value = pageTemplate;
@@ -293,8 +359,25 @@ function downloadPage() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+
+    // 只有真正下载才累计「已发出」次数；反复点生成不会刷计数
+    const weakIds = [...document.querySelectorAll('#cardsContainer .card-item:not(.explanation-item)')]
+        .filter(card => targetEnglishOf(card).trim())
+        .map(card => card.dataset.weakId)
+        .filter(id => /^[0-9a-f]{16}$/.test(id || ''));
+    if (weakIds.length) {
+        try { recordServed(getChildName(), weakIds); } catch (e) { /* ignore */ }
+        if (weakPanel) weakPanel.refresh();
+    }
 }
 
 // Expose to global scope for inline onclick handlers
 window.generatePage = generatePage;
 window.downloadPage = downloadPage;
+
+weakPanel = initWeakPanel({
+    getChildName,
+    getExistingIds,
+    clearCards,
+    addCard: options => window.addCard(options)
+});

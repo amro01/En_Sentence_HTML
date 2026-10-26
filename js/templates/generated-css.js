@@ -151,6 +151,80 @@ export const GENERATED_CSS = `
                 @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(30px); } 100% { opacity: 1; transform: translateY(0); } }
                 @keyframes pulse { 0% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; } 50% { text-shadow: 0 0 15px #bf5af2, 0 0 25px #bf5af2, 0 0 35px #bf5af2; } 100% { text-shadow: 0 0 5px #bf5af2, 0 0 10px #bf5af2; } }
                 .moon-glow { animation: pulse 2s infinite; display: inline-block; filter: grayscale(1) brightness(1.5) drop-shadow(0 0 8px #bf5af2); }
-                @media (max-width: 768px) { body { padding: 15px; } .controls { flex-direction: column; gap: 10px; } .card { padding: 15px 20px; } .reveal-btn { width: auto; padding: 8px 16px; } .english { font-size: 1.1em; } .chinese { font-size: 1.0em; } .ear-icon { font-size: 1.4em; } }
-                @media (max-width: 480px) { body { padding: 10px; } .reveal-btn { width: 100%; } }
+                /* ===== 生疏句循环复习 ===== */
+                .weak-control { flex: 0 0 auto; }
+                .weak-count-btn {
+                    width: 100%;
+                    padding: 8px 10px;
+                    background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+                    color: #9d174d;
+                    border: 1px solid #f9a8d4;
+                    border-radius: 8px;
+                    font-size: 0.95em;
+                    font-weight: 600;
+                    cursor: pointer;
+                    white-space: nowrap;
+                }
+                .weak-count-btn:hover { background: #fbcfe8; }
+                .weak-panel {
+                    background: #fdf2f8;
+                    border: 1px solid #f9a8d4;
+                    border-radius: 12px;
+                    padding: 12px;
+                    margin: -10px 0 22px;
+                }
+                .weak-toolbar { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+                .weak-btn {
+                    background: #fff;
+                    color: #9d174d;
+                    border: 1px solid #f9a8d4;
+                    border-radius: 999px;
+                    padding: 8px 14px;
+                    font-size: 0.9em;
+                    cursor: pointer;
+                    transition: background 0.2s ease, transform 0.2s ease;
+                }
+                .weak-btn:hover { background: #fce7f3; transform: translateY(-1px); }
+                .weak-list {
+                    margin-top: 10px;
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    max-height: 340px;
+                    overflow: auto;
+                }
+                .weak-item {
+                    background: #fff;
+                    border-left: 4px solid #f472b6;
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                }
+                .weak-item-en { color: #831843; font-weight: 600; line-height: 1.45; word-break: break-word; }
+                .weak-item-meta { color: #9d174d; font-size: 0.85em; margin-top: 4px; }
+                .weak-empty { text-align: center; color: #9d174d; margin: 6px 0; }
+                .weak-row { display: flex; justify-content: center; margin-top: 10px; }
+                .weak-toggle {
+                    background: #fff;
+                    color: #be185d;
+                    border: 1px dashed #f9a8d4;
+                    border-radius: 999px;
+                    padding: 6px 12px;
+                    font-size: 0.85em;
+                    cursor: pointer;
+                    transition: all 0.2s ease;
+                }
+                .weak-toggle:hover { background: #fdf2f8; }
+                .weak-toggle.active {
+                    background: #fce7f3;
+                    border-style: solid;
+                    box-shadow: 0 0 0 2px rgba(244, 114, 182, 0.15);
+                }
+                @media (max-width: 768px) {
+                    .weak-toolbar { flex-direction: column; }
+                    .weak-btn { width: 100%; }
+                    .weak-list { max-height: 280px; }
+                }
+                @media (max-width: 480px) {
+                    .weak-count-btn { font-size: 0.85em; }
+                }
 `;
