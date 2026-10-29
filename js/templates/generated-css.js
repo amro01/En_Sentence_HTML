@@ -92,6 +92,10 @@ export const GENERATED_CSS = `
                 .reveal-btn:hover { background-color: #1976D2; }
                 .reveal-btn.locked { background-color: #ccc !important; cursor: not-allowed; opacity: 0.6; }
                 .reveal-btn.playing { background-color: #FF9800 !important; cursor: wait; opacity: 0.8; }
+                /* 整句朗读期间锁定单词点读：点词会 cancel() 掉 TTS 队列，
+                   onend 随之丢失，按钮会悬挂在「播放中...」 */
+                .card.is-playing .word-span { pointer-events: none !important; cursor: default !important; }
+                .card.is-playing .word-span:hover { background-color: transparent !important; color: inherit !important; }
                 .energy-bar { display: flex; gap: 10px; margin-top: 12px; justify-content: center; align-items: center; }
                 .ear-icon { font-size: 1.6em; filter: grayscale(1); opacity: 0.3; transition: all 0.4s ease; transform: scale(0.9); }
                 .ear-icon.lit { filter: grayscale(0); opacity: 1; transform: scale(1.1); animation: earBounce 0.4s ease; }

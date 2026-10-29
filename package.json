@@ -1,6 +1,6 @@
 {
   "name": "en-sentence-html",
-  "version": "2.2.0",
+  "version": "2.5.0",
   "private": true,
   "type": "module",
   "description": "En_Sentence_HTML · 纯前端英语练习生成器（零构建 / 零运行时依赖）",

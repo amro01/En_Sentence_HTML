@@ -720,11 +720,185 @@ ${WEAK_RUNTIME_SOURCE}
                         tryCaptureFirstTry();
                         speakTextWithTracking(englishText, card, btn);
                     } else {
-                        if (btn.dataset.playing === 'true') {
+                        // 只有「确实存在活跃会话且属于本按钮」才拦截；历史遗留的
+                        // dataset.playing 标记会自动清理，避免永久锁死
+                        if (activePlayback && !activePlayback.finished && activePlayback.btn === btn) {
                             alert("正在朗读中，请稍候...");
                             return;
                         }
+                        if (btn.dataset.playing === 'true') {
+                            btn.dataset.playing = 'false';
+                            btn.disabled = false;
+                            btn.classList.remove('playing');
+                            card.classList.remove('is-playing');
+                        }
                         speakTextWithTracking(englishText, card, btn);
+                    }
+                }
+
+                // ============================================================
+                //  TTS 播放控制器：按钮状态的唯一入口 / 唯一出口
+                //  ------------------------------------------------------------
+                //  1) 任何出口（end / error / 被抢占 / 单词点读 / 看门狗）都走
+                //     finishPlayback()，UI 不可能悬挂在「播放中...」；
+                //  2) 统计只在「自然读完」时提交且仅一次（committed 幂等），防刷分；
+                //  3) 不押注单个 onend：onstart/onboundary 作为心跳，静默看门狗 +
+                //     预估时长上限双重兜底（在线语音的 end 事件可能迟到数秒）；
+                //  4) cancel() 与 speak() 必须跨一次宏任务，规避 Chromium 事件被吞的竞态。
+                // ============================================================
+                const TTS_TIMING = {
+                    CHARS_PER_SEC: 13,      // rate=1.0 时英文语音的保守语速（字符/秒）
+                    STARTUP_MS: 4000,       // 首个 onstart 之前的最长等待（在线语音首包）
+                    SEGMENT_GAP_MS: 3000,   // 下一段尚未开播时的静默容忍
+                    TAIL_MS: 1200,          // 最后一段开播后，无 boundary 活动多久视为读完
+                    SEGMENT_OVERHEAD_MS: 400,
+                    MARGIN_RATIO: 0.3,
+                    MARGIN_MS: 1500
+                };
+
+                let playbackSeq = 0;
+                let activePlayback = null;
+
+                function estimateSpeechMs(segments, rate) {
+                    let chars = 0;
+                    segments.forEach(function(s) { chars += s.text.length; });
+                    const speechMs = (chars / (TTS_TIMING.CHARS_PER_SEC * rate)) * 1000;
+                    return Math.round(speechMs * (1 + TTS_TIMING.MARGIN_RATIO)
+                        + segments.length * TTS_TIMING.SEGMENT_OVERHEAD_MS
+                        + TTS_TIMING.MARGIN_MS);
+                }
+
+                // Chromium 已知问题：cancel() 之后同一任务里的 speak() 会被吞掉，
+                // 或事件被推迟到下一个 TTS 服务周期。跨一次宏任务再入队。
+                function deferSpeech(fn) {
+                    if (typeof requestAnimationFrame === 'function') {
+                        requestAnimationFrame(function() { setTimeout(fn, 0); });
+                    } else {
+                        setTimeout(fn, 0);
+                    }
+                }
+
+                function scheduleSilenceWatchdog(playback) {
+                    if (playback.finished) return;
+                    clearTimeout(playback.silenceTimer);
+                    let delay;
+                    if (!playback.activitySeen) delay = TTS_TIMING.STARTUP_MS;
+                    else if (playback.startedCount < playback.segmentCount) delay = TTS_TIMING.SEGMENT_GAP_MS;
+                    else delay = TTS_TIMING.TAIL_MS;
+                    playback.silenceTimer = setTimeout(function() {
+                        finishPlayback(playback, 'watchdog');
+                    }, delay);
+                }
+
+                function notePlaybackActivity(playback, startedSegmentIndex) {
+                    if (!playback || playback.finished) return;
+                    playback.activitySeen = true;
+                    if (startedSegmentIndex !== undefined) {
+                        playback.startedCount = Math.max(playback.startedCount, startedSegmentIndex + 1);
+                    }
+                    scheduleSilenceWatchdog(playback);
+                }
+
+                function startPlayback(btnElement, cardElement, segments, rate, context) {
+                    // 抢占：任何仍在播的旧会话先走完收尾（否则旧按钮会永久停在播放中）
+                    if (activePlayback && !activePlayback.finished) {
+                        finishPlayback(activePlayback, 'superseded');
+                    }
+                    const playback = {
+                        id: ++playbackSeq,
+                        btn: btnElement,
+                        card: cardElement,
+                        segmentCount: segments.length,
+                        startedCount: 0,
+                        activitySeen: false,
+                        silenceTimer: null,
+                        deadlineTimer: null,
+                        finished: false,
+                        committed: false,
+                        englishText: context.englishText,
+                        stats: context.stats,
+                        energyBar: context.energyBar
+                    };
+                    activePlayback = playback;
+
+                    btnElement.dataset.playing = 'true';
+                    btnElement.dataset.playToken = String(playback.id);
+                    btnElement.disabled = true;
+                    btnElement.classList.add('playing');
+                    btnElement.textContent = '🔊 播放中...';
+                    if (cardElement) cardElement.classList.add('is-playing');
+
+                    // 绝对上限：即使 onstart/onboundary/onend 全部丢失，也会在「启动等待 + 预估时长」后解锁
+                    playback.deadlineTimer = setTimeout(function() {
+                        finishPlayback(playback, 'watchdog');
+                    }, TTS_TIMING.STARTUP_MS + estimateSpeechMs(segments, rate));
+
+                    scheduleSilenceWatchdog(playback);
+                    return playback;
+                }
+
+                function finishPlayback(playback, reason) {
+                    if (!playback || playback.finished) return;
+                    playback.finished = true;
+                    clearTimeout(playback.silenceTimer);
+                    clearTimeout(playback.deadlineTimer);
+                    playback.silenceTimer = null;
+                    playback.deadlineTimer = null;
+
+                    // 播放失败：终止剩余队列，避免「UI 已解锁、后半句还在念」
+                    if (reason === 'error') {
+                        try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+                    }
+
+                    // 1) 先解锁 UI —— 只允许「仍持有该按钮」的会话改写它
+                    const btn = playback.btn;
+                    if (btn && btn.dataset.playToken === String(playback.id)) {
+                        btn.disabled = false;
+                        btn.textContent = '再次朗读';
+                        btn.dataset.playing = 'false';
+                        btn.classList.remove('playing');
+                        if (playback.card) playback.card.classList.remove('is-playing');
+                    }
+                    if (activePlayback === playback) activePlayback = null;
+
+                    // 2) 统计只提交一次，且仅在「确实开播过 + 正常读完或被看门狗判为读完」
+                    const natural = (reason === 'completed') || (reason === 'watchdog' && playback.activitySeen);
+                    if (!playback.committed && natural) {
+                        playback.committed = true;
+                        commitPlaybackStats(playback);
+                    }
+                }
+
+                function commitPlaybackStats(playback) {
+                    const cardElement = playback.card;
+                    const englishText = playback.englishText;
+                    const stats = playback.stats;
+                    const energyBar = playback.energyBar;
+                    if (!cardElement || !englishText || !stats) return;
+                    if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
+                    stats[englishText].replay += 1;
+                    const cardIdx = parseInt(cardElement.dataset.cardIndex);
+                    const trapState = (!isNaN(cardIdx) && appState.trapsState[cardIdx]) || null;
+                    const isUncaughtTrap = cardElement.dataset.trap === 'true' && !(trapState && trapState.isCaught);
+                    // Energy Lock: uncaught traps cannot gain energy
+                    if (!isUncaughtTrap) {
+                        stats[englishText].mastery_count += 1;
+                    }
+                    if (energyBar) updateEnergyBar(energyBar, isUncaughtTrap ? 0 : stats[englishText].mastery_count, cardElement);
+
+                    // === "Two-Strike" auto-reveal logic ===
+                    if (isUncaughtTrap && !isNaN(cardIdx)) {
+                        ensureTrapState(appState, cardIdx);
+                        const ts = getTrapState(cardIdx);
+                        if (ts) {
+                            ts.wrongReadCount = (ts.wrongReadCount || 0) + 1;
+                            saveAppState();
+                            if (ts.wrongReadCount >= 2) {
+                                setTimeout(function() { autoRevealTrap(cardIdx); }, 500);
+                            }
+                        }
+                    } else {
+                        saveAppState();
                     }
                 }
 
@@ -732,73 +906,66 @@ ${WEAK_RUNTIME_SOURCE}
                     if (!('speechSynthesis' in window)) { alert('您的浏览器不支持语音合成功能'); return; }
                     const segments = parseDialogues(text);
                     if (segments.length === 0) return;
-                    window.speechSynthesis.cancel();
                     const maleVoiceName = maleVoiceSelect.value;
                     const femaleVoiceName = femaleVoiceSelect.value;
                     const rate = parseFloat(speedSelect.value) || 0.7;
-                    btnElement.dataset.playing = 'true';
-                    btnElement.disabled = true;
-                    btnElement.classList.add('playing');
-                    btnElement.textContent = '🔊 播放中...';
-                    const energyBar = cardElement.querySelector('.energy-bar');
-                    const englishText = decodeURIComponent(cardElement.dataset.english);
-                    const stats = getStats();
-                    segments.forEach((segment, index) => {
-                        const utterance = new SpeechSynthesisUtterance(segment.text);
-                        let targetVoice = null;
-                        if (segment.gender === 'female' && femaleVoiceName) targetVoice = availableVoices.find(v => v.name === femaleVoiceName);
-                        else if (maleVoiceName) targetVoice = availableVoices.find(v => v.name === maleVoiceName);
-                        if (targetVoice) { utterance.voice = targetVoice; utterance.lang = targetVoice.lang; }
-                        else { utterance.lang = 'en-US'; }
-                        utterance.rate = rate;
-                        if (index === 0) {
+
+                    const playback = startPlayback(btnElement, cardElement, segments, rate, {
+                        englishText: decodeURIComponent(cardElement.dataset.english),
+                        stats: getStats(),
+                        energyBar: cardElement.querySelector('.energy-bar')
+                    });
+
+                    // 仅在确有任务时 cancel，减少无谓的 cancel/speak 竞态
+                    if (speechSynthesis.speaking || speechSynthesis.pending) {
+                        window.speechSynthesis.cancel();
+                    }
+
+                    deferSpeech(function() {
+                        if (playback.finished) return;
+                        segments.forEach(function(segment, index) {
+                            const utterance = new SpeechSynthesisUtterance(segment.text);
+                            let targetVoice = null;
+                            if (segment.gender === 'female' && femaleVoiceName) targetVoice = availableVoices.find(v => v.name === femaleVoiceName);
+                            else if (maleVoiceName) targetVoice = availableVoices.find(v => v.name === maleVoiceName);
+                            if (targetVoice) { utterance.voice = targetVoice; utterance.lang = targetVoice.lang; }
+                            else { utterance.lang = 'en-US'; }
+                            utterance.rate = rate;
+
+                            // 每一段都绑定事件：中间段的异常/事件丢失同样有兜底与心跳
                             utterance.onstart = function() {
-                                btnElement.disabled = true;
-                                btnElement.textContent = '🔊 播放中...';
-                                btnElement.classList.add('playing');
-                                btnElement.dataset.playing = 'true';
+                                if (playback.finished) return;
+                                notePlaybackActivity(playback, index);
+                                if (index === 0 && btnElement.dataset.playToken === String(playback.id)) {
+                                    btnElement.disabled = true;
+                                    btnElement.textContent = '🔊 播放中...';
+                                    btnElement.classList.add('playing');
+                                    btnElement.dataset.playing = 'true';
+                                }
                             };
-                        }
-                        if (index === segments.length - 1) {
+                            utterance.onboundary = function() {
+                                notePlaybackActivity(playback);
+                            };
                             utterance.onend = function() {
-                                btnElement.disabled = false;
-                                btnElement.textContent = '再次朗读';
-                                btnElement.dataset.playing = 'false';
-                                btnElement.classList.remove('playing');
-                                if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
-                                stats[englishText].replay += 1;
-                                const cardIdx = parseInt(cardElement.dataset.cardIndex);
-                                const isUncaughtTrap = cardElement.dataset.trap === 'true' && 
-                                    !(appState.trapsState[cardIdx]?.isCaught);
-                                // Energy Lock: uncaught traps cannot gain energy
-                                if (!isUncaughtTrap) {
-                                    stats[englishText].mastery_count += 1;
-                                }
-                                if (energyBar) updateEnergyBar(energyBar, isUncaughtTrap ? 0 : stats[englishText].mastery_count, cardElement);
-                                
-                                // === "Two-Strike" auto-reveal logic ===
-                                if (isUncaughtTrap && cardIdx !== undefined && !isNaN(cardIdx)) {
-                                    ensureTrapState(appState, cardIdx);
-                                    const ts = getTrapState(cardIdx);
-                                    if (ts) {
-                                        ts.wrongReadCount = (ts.wrongReadCount || 0) + 1;
-                                        saveAppState();
-                                        if (ts.wrongReadCount >= 2) {
-                                            setTimeout(() => autoRevealTrap(cardIdx), 500);
-                                        }
-                                    }
+                                if (index === segments.length - 1) {
+                                    finishPlayback(playback, 'completed');
                                 } else {
-                                    saveAppState();
+                                    notePlaybackActivity(playback);
                                 }
                             };
-                            utterance.onerror = function() {
-                                btnElement.disabled = false;
-                                btnElement.textContent = '再次朗读';
-                                btnElement.dataset.playing = 'false';
-                                btnElement.classList.remove('playing');
+                            utterance.onerror = function(event) {
+                                // cancel / 抢占引起的中断不算播放失败（会话早已收尾）
+                                if (playback.finished) return;
+                                console.warn('[TTS] utterance error:', event && event.error);
+                                finishPlayback(playback, 'error');
                             };
-                        }
-                        window.speechSynthesis.speak(utterance);
+                            try {
+                                window.speechSynthesis.speak(utterance);
+                            } catch (err) {
+                                console.warn('[TTS] speak failed:', err);
+                                finishPlayback(playback, 'error');
+                            }
+                        });
                     });
                 }
 
@@ -844,7 +1011,14 @@ ${WEAK_RUNTIME_SOURCE}
                 // --- Speak a single word using current voice settings ---
                 function speakSingleWord(word) {
                     if (!('speechSynthesis' in window)) return;
-                    window.speechSynthesis.cancel();
+                    // 单词点读必然打断整句朗读：先把当前会话安全收尾，
+                    // 否则其 onend 永不触发，按钮会永久停在「播放中...」
+                    if (activePlayback && !activePlayback.finished) {
+                        finishPlayback(activePlayback, 'interrupted');
+                    }
+                    if (speechSynthesis.speaking || speechSynthesis.pending) {
+                        window.speechSynthesis.cancel();
+                    }
 
                     const utterance = new SpeechSynthesisUtterance(word);
                     utterance.lang = 'en-US';
@@ -866,7 +1040,14 @@ ${WEAK_RUNTIME_SOURCE}
                         utterance.rate = 0.7;
                     }
 
-                    window.speechSynthesis.speak(utterance);
+                    // 与整句朗读保持一致：cancel 后跨 tick 再 speak
+                    deferSpeech(function() {
+                        try {
+                            window.speechSynthesis.speak(utterance);
+                        } catch (err) {
+                            console.warn('[TTS] word speak failed:', err);
+                        }
+                    });
                 }
 
                 // --- Global click delegate for word-span clicks + detective mode compatibility ---
@@ -1168,7 +1349,11 @@ ${WEAK_RUNTIME_SOURCE}
                         try { WeakReview.finalize('reset'); } catch (e) { /* ignore */ }
                         // ① 清空内存中的 appState，防止在页面卸载前被任何异步回调（如语音 onend）重新保存旧数据
                         Object.assign(appState, getDefaultAppState());
-                        // ② 取消正在播放的语音合成，阻止 onend 回调触发 saveAppState()
+                        // ② 取消正在播放的语音合成：先收尾会话（清掉看门狗定时器），
+                        //    再 cancel()，避免延迟回调在重置后重新写回旧统计
+                        if (activePlayback && !activePlayback.finished) {
+                            finishPlayback(activePlayback, 'reset');
+                        }
                         if ('speechSynthesis' in window) {
                             window.speechSynthesis.cancel();
                         }
