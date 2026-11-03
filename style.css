@@ -435,12 +435,118 @@ button.btn-primary:hover {
 .weak-hint { font-size: 0.8em; color: #9d174d; min-height: 1.2em; margin: 8px 0 0; }
 .weak-empty { text-align: center; color: #9ca3af; padding: 16px; }
 
+/* ===== 成绩反馈监控目录 ===== */
+.dir-monitor {
+    background: #fff;
+    border: 1px dashed #f9a8d4;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 10px 0;
+}
+.dir-monitor-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    color: #831843;
+    font-weight: 600;
+}
+.dir-light { font-size: 0.9em; line-height: 1; }
+.dir-light.off { color: #d1d5db; }
+.dir-light.pending { color: #f59e0b; }
+.dir-light.ok { color: #22c55e; }
+.dir-name { word-break: break-all; }
+.dir-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.dir-drop {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px dashed #fbcfe8;
+    border-radius: 8px;
+    background: #fdf2f8;
+    color: #9d174d;
+    font-size: 0.8em;
+    transition: background 0.15s, border-color 0.15s;
+}
+.dir-drop.dragging { background: #fce7f3; border-color: #ec4899; }
+.dir-drop-text { color: #9ca3af; }
+.dir-fallback-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.dir-summary { font-size: 0.8em; color: #6b7280; margin: 8px 0 0; min-height: 1.2em; }
+
+/* ===== 智能推荐复习 ===== */
+.weak-recommend {
+    background: #fff;
+    border: 1px solid #fbcfe8;
+    border-radius: 8px;
+    padding: 10px 12px;
+    margin: 10px 0;
+}
+.weak-recommend-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.weak-recommend-title { font-weight: 600; color: #9d174d; font-size: 0.9em; }
+.weak-recommend-head label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8em;
+    color: #6b7280;
+    font-weight: normal;
+}
+.weak-recommend-head select {
+    padding: 6px 8px;
+    font-size: 0.85em;
+    border: 1px solid #fbcfe8;
+    border-radius: 6px;
+    background: #fff;
+    color: #831843;
+}
+.weak-rec-panel[hidden] { display: none; }
+.weak-rec-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 10px;
+    max-height: 300px;
+    overflow: auto;
+}
+.weak-rec-row {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    padding: 8px 10px;
+    border: 1px solid #fce7f3;
+    border-radius: 8px;
+    background: #fff;
+}
+.weak-rec-row.selected { border-color: #f472b6; background: #fdf2f8; }
+.weak-rec-main { flex: 1; min-width: 0; }
+.weak-rec-en { font-size: 0.9em; color: #831843; font-weight: 600; word-break: break-word; }
+.weak-rec-meta { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 5px; }
+.weak-rec-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.weak-rec-count { font-size: 0.8em; color: #6b7280; }
+.weak-chip.urgency { font-weight: 600; }
+.weak-chip.urgency.pinned { background: #ede9fe; color: #5b21b6; }
+.weak-chip.urgency.critical { background: #fee2e2; color: #b91c1c; }
+.weak-chip.urgency.due { background: #ffedd5; color: #c2410c; }
+.weak-chip.urgency.watching { background: #fef9c3; color: #a16207; }
+.weak-entry.urgency-pinned { border-left-color: #8b5cf6; }
+.weak-entry.urgency-critical { border-left-color: #ef4444; }
+.weak-entry.urgency-due { border-left-color: #f59e0b; }
+.weak-entry.urgency-watching { border-left-color: #eab308; }
+
 @media (max-width: 768px) {
     .weak-controls,
     .weak-manual { flex-direction: column; align-items: stretch; }
     .weak-controls input[type="number"] { width: auto; }
     .weak-list { max-height: 320px; }
     .weak-mini-btn { flex: 1 1 auto; }
+    .dir-actions,
+    .weak-recommend-head,
+    .weak-rec-actions { flex-direction: column; align-items: stretch; }
+    .dir-drop { flex-direction: column; align-items: flex-start; }
+    .weak-rec-list { max-height: 260px; }
 }
 
 .weak-badge {

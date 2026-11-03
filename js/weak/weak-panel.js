@@ -37,6 +37,23 @@ import {
     savePool,
     scanOutboxes
 } from './weak-store.js';
+import {
+    URGENCY_META,
+    rankReviewEntries,
+    urgencyOf
+} from './weak-recommender.js';
+import {
+    clearSavedDirectoryHandle,
+    filesFromDataTransfer,
+    getSavedDirectoryHandle,
+    getSeenPracticeIds,
+    markPracticesSeen,
+    pickFeedbackDirectory,
+    queryDirectoryPermission,
+    scanFeedbackDirectory,
+    supportsDirectoryPicker,
+    verifyPermission
+} from './dir-monitor.js';
 
 const FILTER_OPTIONS = [
     ['due', '待复习（到期/手动）'],
@@ -55,6 +72,15 @@ const SORT_OPTIONS = [
     ['alpha', '英文 A→Z']
 ];
 
+const REC_MODE_OPTIONS = [
+    ['all', '全量待复习'],
+    ['frequent', '仅高频错题'],
+    ['trap', '仅陷阱失误题']
+];
+
+/** 「批量自选复习」列表展示的推荐条数 */
+const REC_LIST_LIMIT = 20;
+
 const PANEL_HTML = `
 <div class="weak-overview">
     <span class="weak-stat">生疏 <b id="weakStatWeak">0</b></span>
@@ -65,6 +91,40 @@ const PANEL_HTML = `
     <button type="button" class="weak-mini-btn" id="weakSyncBtn">🔄 同步练习记录</button>
     <button type="button" class="weak-mini-btn" id="weakExportBtn">📤 导出备份</button>
     <button type="button" class="weak-mini-btn" id="weakCleanBtn">🧹 清理已毕业</button>
+</div>
+<div class="dir-monitor" id="dirMonitor">
+    <div class="dir-monitor-head">
+        <span class="dir-light off" id="dirLight" aria-hidden="true">●</span>
+        <span class="dir-name" id="dirName">📁 未设置成绩监控目录</span>
+    </div>
+    <div class="dir-actions">
+        <button type="button" class="weak-mini-btn" id="dirPickBtn">📂 设定/切换成绩目录</button>
+        <button type="button" class="weak-mini-btn" id="dirScanBtn" disabled>🔄 立即扫描更新</button>
+        <button type="button" class="weak-mini-btn" id="dirClearBtn" disabled>❌ 取消监控</button>
+    </div>
+    <div class="dir-drop" id="dirDrop">
+        <button type="button" class="weak-secondary" id="dirFallbackBtn">📁 选择文件夹（降级）</button>
+        <span class="dir-drop-text">不支持目录授权时，也可把整个成绩文件夹拖到这里</span>
+        <input type="file" id="dirFallbackInput" class="dir-fallback-input" webkitdirectory directory multiple>
+    </div>
+    <p class="dir-summary" id="dirSummary">选好目录后即可自动识别练习记录与错句。</p>
+</div>
+<div class="weak-recommend" id="weakRecommend">
+    <div class="weak-recommend-head">
+        <span class="weak-recommend-title">🎯 智能推荐复习</span>
+        <label>范围 <select id="weakRecMode"></select></label>
+        <button type="button" class="weak-primary" id="weakRec3Btn">🎯 填入推荐 3 句</button>
+        <button type="button" class="weak-primary" id="weakRec5Btn">🎯 填入推荐 5 句</button>
+        <button type="button" class="weak-secondary" id="weakRecToggleBtn" aria-expanded="false">📋 批量自选复习...</button>
+    </div>
+    <div class="weak-rec-panel" id="weakRecPanel" hidden>
+        <div class="weak-rec-list" id="weakRecList"></div>
+        <div class="weak-rec-actions">
+            <span class="weak-rec-count" id="weakRecCount">已选 0 句</span>
+            <button type="button" class="weak-primary" id="weakRecFillBtn">➕ 将选中项填入上方卡片</button>
+            <button type="button" class="weak-secondary" id="weakRecClearBtn">清空勾选</button>
+        </div>
+    </div>
 </div>
 <div class="weak-controls">
     <label>筛选 <select id="weakFilter"></select></label>
@@ -144,7 +204,17 @@ export function initWeakPanel(options) {
         limit: 5,
         selected: new Set(),
         hintTimer: null,
-        hashHandled: false
+        hashHandled: false,
+        recMode: 'all',
+        recSelected: new Set(),
+        recOpen: false,
+        dir: {
+            handle: null,
+            name: '',
+            status: 'none',
+            busy: false,
+            lastScan: null
+        }
     };
 
     root.innerHTML = PANEL_HTML;
@@ -173,11 +243,31 @@ export function initWeakPanel(options) {
         manualZh: document.getElementById('weakManualZh'),
         manualAddBtn: document.getElementById('weakManualAddBtn'),
         list: document.getElementById('weakList'),
-        hint: document.getElementById('weakHint')
+        hint: document.getElementById('weakHint'),
+        dirMonitor: document.getElementById('dirMonitor'),
+        dirLight: document.getElementById('dirLight'),
+        dirName: document.getElementById('dirName'),
+        dirPickBtn: document.getElementById('dirPickBtn'),
+        dirScanBtn: document.getElementById('dirScanBtn'),
+        dirClearBtn: document.getElementById('dirClearBtn'),
+        dirDrop: document.getElementById('dirDrop'),
+        dirFallbackBtn: document.getElementById('dirFallbackBtn'),
+        dirFallbackInput: document.getElementById('dirFallbackInput'),
+        dirSummary: document.getElementById('dirSummary'),
+        recMode: document.getElementById('weakRecMode'),
+        rec3Btn: document.getElementById('weakRec3Btn'),
+        rec5Btn: document.getElementById('weakRec5Btn'),
+        recToggleBtn: document.getElementById('weakRecToggleBtn'),
+        recPanel: document.getElementById('weakRecPanel'),
+        recList: document.getElementById('weakRecList'),
+        recCount: document.getElementById('weakRecCount'),
+        recFillBtn: document.getElementById('weakRecFillBtn'),
+        recClearBtn: document.getElementById('weakRecClearBtn')
     };
 
     fillSelect(els.filter, FILTER_OPTIONS, state.filter);
     fillSelect(els.sort, SORT_OPTIONS, state.sort);
+    fillSelect(els.recMode, REC_MODE_OPTIONS, state.recMode);
 
     function getChildName() {
         if (typeof opts.getChildName === 'function') {
@@ -200,6 +290,9 @@ export function initWeakPanel(options) {
         state.pool = loadPool(state.childName);
         for (const id of [...state.selected]) {
             if (!state.pool.entries[id]) state.selected.delete(id);
+        }
+        for (const id of [...state.recSelected]) {
+            if (!state.pool.entries[id]) state.recSelected.delete(id);
         }
         return state.pool;
     }
@@ -300,10 +393,13 @@ export function initWeakPanel(options) {
             if (entry.zh) main.appendChild(make('div', 'weak-entry-zh', entry.zh));
 
             const meta = make('div', 'weak-entry-meta');
+            if (entry.status === 'weak') {
+                const urgency = urgencyOf(entry, localDateKey());
+                row.classList.add('urgency-' + urgency);
+                meta.appendChild(chip(URGENCY_META[urgency].label, 'urgency ' + urgency));
+            }
             meta.appendChild(chip('分 ' + (entry.ewmaScore || 0), 'score'));
-            if (entry.manualWeak) meta.appendChild(chip('🔴 手动', 'manual'));
             if (entry.isTrap) meta.appendChild(chip('🕵️ 陷阱', 'trap'));
-            if (entry.status === 'weak' && isEntryDue(entry, localDateKey())) meta.appendChild(chip('⏳ 到期', 'due'));
             if (entry.status === 'graduated') meta.appendChild(chip('🎓 已毕业', 'graduated'));
             if (entry.failCount) meta.appendChild(chip('失败 ' + entry.failCount));
             if (entry.successStreak) meta.appendChild(chip('连续达标 ' + entry.successStreak));
@@ -355,6 +451,68 @@ export function initWeakPanel(options) {
     function render() {
         renderStats();
         renderList();
+        renderRecommend();
+    }
+
+    function rankedRecommendations(limit) {
+        return rankReviewEntries(state.pool, {
+            mode: state.recMode,
+            today: localDateKey(),
+            limit: limit || REC_LIST_LIMIT
+        });
+    }
+
+    function renderRecommend() {
+        if (!els.recList) return;
+        const ranked = rankedRecommendations(REC_LIST_LIMIT);
+        for (const id of [...state.recSelected]) {
+            if (!state.pool.entries[id]) state.recSelected.delete(id);
+        }
+        els.recList.textContent = '';
+
+        if (!ranked.length) {
+            els.recList.appendChild(make('div', 'weak-empty', '这个范围下没有待复习句。'));
+        } else {
+            for (const item of ranked) {
+                els.recList.appendChild(renderRecommendRow(item));
+            }
+        }
+        els.recCount.textContent = '已选 ' + state.recSelected.size + ' 句';
+        els.recFillBtn.disabled = state.recSelected.size === 0;
+    }
+
+    function renderRecommendRow(item) {
+        const entry = item.entry;
+        const row = make('div', 'weak-rec-row');
+        if (state.recSelected.has(entry.id)) row.classList.add('selected');
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'weak-entry-check';
+        checkbox.checked = state.recSelected.has(entry.id);
+        checkbox.addEventListener('change', function () {
+            if (checkbox.checked) state.recSelected.add(entry.id);
+            else state.recSelected.delete(entry.id);
+            if (checkbox.checked) row.classList.add('selected');
+            else row.classList.remove('selected');
+            els.recCount.textContent = '已选 ' + state.recSelected.size + ' 句';
+            els.recFillBtn.disabled = state.recSelected.size === 0;
+        });
+        row.appendChild(checkbox);
+
+        const main = make('div', 'weak-rec-main');
+        const text = make('div', 'weak-rec-en', entry.en);
+        main.appendChild(text);
+
+        const meta = make('div', 'weak-rec-meta');
+        meta.appendChild(chip(URGENCY_META[item.urgency].label, 'urgency ' + item.urgency));
+        meta.appendChild(chip('推荐 ' + item.score + ' 分'));
+        if (entry.isTrap) meta.appendChild(chip('🕵️ 陷阱', 'trap'));
+        if (entry.failCount) meta.appendChild(chip('失败 ' + entry.failCount));
+        if (item.breakdown.overdueDays) meta.appendChild(chip('逾期 ' + item.breakdown.overdueDays + ' 天', 'due'));
+        main.appendChild(meta);
+        row.appendChild(main);
+        return row;
     }
 
     function existingIds() {
@@ -364,6 +522,25 @@ export function initWeakPanel(options) {
         } catch (e) {
             return new Set();
         }
+    }
+
+    // 复习句若原本是陷阱句，自动回填对照英文并勾选陷阱，避免丢失配置
+    function cardOptionsFor(entry) {
+        const trapEn = String(entry.trapEn || '').trim();
+        if (entry.isTrap && trapEn) {
+            return {
+                en: trapEn,
+                zh: entry.zh,
+                isTrap: true,
+                correctEn: entry.en,
+                weak: { id: entry.id, reviewCount: entry.reviewCount || 0 }
+            };
+        }
+        return {
+            en: entry.en,
+            zh: entry.zh,
+            weak: { id: entry.id, reviewCount: entry.reviewCount || 0 }
+        };
     }
 
     function fillEntries(entries, replace) {
@@ -387,14 +564,7 @@ export function initWeakPanel(options) {
                 continue;
             }
             if (typeof opts.addCard !== 'function') break;
-            opts.addCard({
-                en: entry.en,
-                zh: entry.zh,
-                weak: {
-                    id: entry.id,
-                    reviewCount: entry.reviewCount || 0
-                }
-            });
+            opts.addCard(cardOptionsFor(entry));
             existing.add(entry.id);
             added += 1;
         }
@@ -490,6 +660,39 @@ export function initWeakPanel(options) {
         fillEntries(entries, true);
     }
 
+    // 推荐填充：跳过已存在的句子，尽量凑满 count 句新的
+    function fillRecommended(count) {
+        const existing = existingIds();
+        const entries = rankReviewEntries(state.pool, {
+            mode: state.recMode,
+            today: localDateKey()
+        })
+            .map(item => item.entry)
+            .filter(entry => !existing.has(entry.id))
+            .slice(0, count);
+        if (!entries.length) {
+            hint('没有可推荐的新句子（可能都已在练习卡片里）');
+            return;
+        }
+        fillEntries(entries, false);
+    }
+
+    function fillRecommendedSelected() {
+        const entries = Object.values(state.pool.entries).filter(entry => state.recSelected.has(entry.id));
+        if (!entries.length) {
+            hint('请先勾选要复习的句子');
+            return;
+        }
+        fillEntries(entries, false);
+    }
+
+    function toggleRecommendPanel(force) {
+        state.recOpen = typeof force === 'boolean' ? force : !state.recOpen;
+        els.recPanel.hidden = !state.recOpen;
+        els.recToggleBtn.setAttribute('aria-expanded', state.recOpen ? 'true' : 'false');
+        if (state.recOpen) renderRecommend();
+    }
+
     function handleImport(text) {
         if (!text || !String(text).trim()) {
             hint('请先粘贴或选择错题包');
@@ -548,6 +751,166 @@ export function initWeakPanel(options) {
                 (result.pruned ? '（已清理部分历史）' : ''));
         }
         return stats;
+    }
+
+    function scanSummaryText(scan) {
+        if (!scan) return '选好目录后即可自动识别练习记录与错句。';
+        const parts = ['已识别 ' + scan.practiceCount + ' 份练习记录'];
+        parts.push('发现 ' + scan.weakEntriesCount + ' 条待复习错句');
+        if (scan.newEntriesCount) parts.push('新增 ' + scan.newEntriesCount + ' 条');
+        if (scan.latest && scan.latest.date) {
+            parts.push('最近一次反馈来自 ' + scan.latest.date +
+                (scan.latest.childName ? ' · ' + scan.latest.childName : ''));
+        }
+        if (scan.skippedFiles.length) parts.push('跳过 ' + scan.skippedFiles.length + ' 个文件');
+        return parts.join('，') + '。';
+    }
+
+    function renderDir() {
+        const dir = state.dir;
+        const hasHandle = !!dir.handle;
+        const granted = hasHandle && dir.status === 'granted';
+        els.dirScanBtn.disabled = !hasHandle || dir.busy;
+        els.dirClearBtn.disabled = !hasHandle;
+        els.dirName.textContent = '';
+        els.dirLight.className = 'dir-light ' + (granted ? 'ok' : (hasHandle ? 'pending' : 'off'));
+        els.dirLight.textContent = granted ? '🟢' : (hasHandle ? '🔴' : '⚪');
+
+        if (!hasHandle) {
+            els.dirName.textContent = '📁 未设置成绩监控目录';
+        } else if (granted) {
+            els.dirName.textContent = '📁 监控中：' + (dir.name || '成绩目录');
+        } else if (dir.status === 'prompt') {
+            els.dirName.textContent = '📁 ' + (dir.name || '成绩目录') + '（需点击扫描重新授权）';
+        } else if (dir.status === 'unsupported') {
+            els.dirName.textContent = '📁 ' + (dir.name || '成绩目录') + '（浏览器不支持自动授权）';
+        } else {
+            els.dirName.textContent = '📁 ' + (dir.name || '成绩目录') + '（权限被拒绝）';
+        }
+        els.dirSummary.textContent = dir.lastScan
+            ? scanSummaryText(dir.lastScan)
+            : '选好目录后即可自动识别练习记录与错句。';
+    }
+
+    /** 导入扫描结果：逐份练习记录按时间升序合并，保持生命周期顺序 */
+    function applyScan(scan) {
+        const stats = { created: 0, merged: 0, duplicate: 0, ignored: 0, invalid: 0 };
+        for (const item of scan.packs) {
+            try {
+                const result = importPack(state.pool, item.pack, WEAK_DEFAULTS, localDateKey());
+                for (const key of Object.keys(stats)) stats[key] += Number(result[key]) || 0;
+            } catch (e) {
+                stats.invalid += 1;
+            }
+        }
+        return stats;
+    }
+
+    async function performScan(source, options) {
+        const scanOpts = options || {};
+        const scan = await scanFeedbackDirectory(source, {
+            knownPracticeIds: await getSeenPracticeIds(),
+            childName: state.childName
+        });
+        const stats = applyScan(scan);
+        await markPracticesSeen(scan.practiceIds);
+        state.dir.lastScan = scan;
+        persist();
+        render();
+        if (!scanOpts.silent) {
+            hint('扫描完成：' + scan.practiceCount + ' 份记录，' +
+                scan.weakEntriesCount + ' 条待复习' +
+                (stats.created ? '，新增 ' + stats.created : '') +
+                (stats.merged ? '，更新 ' + stats.merged : ''));
+        }
+        return scan;
+    }
+
+    async function scanSource(source, options) {
+        if (state.dir.busy) return null;
+        state.dir.busy = true;
+        renderDir();
+        try {
+            return await performScan(source, options);
+        } catch (e) {
+            hint('扫描失败：' + (e && e.message ? e.message : e));
+            return null;
+        } finally {
+            state.dir.busy = false;
+            renderDir();
+        }
+    }
+
+    async function scanDir() {
+        if (!state.dir.handle) {
+            hint('请先设定成绩监控目录，或用文件夹选择 / 拖拽扫描');
+            return null;
+        }
+        if (state.dir.busy) return null;
+        if (state.dir.status !== 'granted') {
+            state.dir.busy = true;
+            renderDir();
+            const permission = await verifyPermission(state.dir.handle, false);
+            state.dir.busy = false;
+            state.dir.status = permission;
+            renderDir();
+            if (permission !== 'granted') {
+                hint('目录权限未开启：请重新选择目录，或使用文件夹选择 / 拖拽');
+                return null;
+            }
+        }
+        return scanSource(state.dir.handle, { silent: false });
+    }
+
+    async function pickDir() {
+        if (!supportsDirectoryPicker()) {
+            hint('当前浏览器不支持目录授权，已打开文件夹选择（降级）');
+            els.dirFallbackInput.click();
+            return;
+        }
+        try {
+            const handle = await pickFeedbackDirectory();
+            state.dir.handle = handle;
+            state.dir.name = handle.name || '成绩目录';
+            state.dir.status = 'granted';
+            state.dir.lastScan = null;
+            renderDir();
+            await scanDir();
+        } catch (e) {
+            if (e && (e.name === 'AbortError' || e.name === 'NotAllowedError')) return;
+            hint('无法访问目录：' + (e && e.message ? e.message : e) + '，可改用文件夹选择或拖拽');
+        }
+    }
+
+    async function clearDir() {
+        if (!confirm('取消监控成绩目录？（已导入的生疏记录会保留）')) return;
+        await clearSavedDirectoryHandle();
+        state.dir.handle = null;
+        state.dir.name = '';
+        state.dir.status = 'none';
+        state.dir.lastScan = null;
+        state.dir.busy = false;
+        renderDir();
+        hint('已取消目录监控');
+    }
+
+    async function restoreDir() {
+        let handle = null;
+        try {
+            handle = await getSavedDirectoryHandle();
+        } catch (e) {
+            handle = null;
+        }
+        if (!handle) {
+            renderDir();
+            return null;
+        }
+        state.dir.handle = handle;
+        state.dir.name = handle.name || '成绩目录';
+        state.dir.status = await queryDirectoryPermission(handle);
+        renderDir();
+        if (state.dir.status === 'granted') await scanSource(handle, { silent: true });
+        return handle;
     }
 
     function manualAdd() {
@@ -671,11 +1034,63 @@ export function initWeakPanel(options) {
     });
     els.manualAddBtn.addEventListener('click', manualAdd);
 
+    els.recMode.addEventListener('change', function () {
+        state.recMode = els.recMode.value;
+        renderRecommend();
+    });
+    els.rec3Btn.addEventListener('click', function () { fillRecommended(3); });
+    els.rec5Btn.addEventListener('click', function () { fillRecommended(5); });
+    els.recToggleBtn.addEventListener('click', function () { toggleRecommendPanel(); });
+    els.recFillBtn.addEventListener('click', fillRecommendedSelected);
+    els.recClearBtn.addEventListener('click', function () {
+        state.recSelected.clear();
+        renderRecommend();
+    });
+
+    els.dirPickBtn.addEventListener('click', pickDir);
+    els.dirScanBtn.addEventListener('click', scanDir);
+    els.dirClearBtn.addEventListener('click', clearDir);
+    els.dirFallbackBtn.addEventListener('click', function () { els.dirFallbackInput.click(); });
+    els.dirFallbackInput.addEventListener('change', function () {
+        const files = els.dirFallbackInput.files;
+        if (files && files.length) scanSource(files, { silent: false });
+        els.dirFallbackInput.value = '';
+    });
+
+    ['dragenter', 'dragover'].forEach(function (type) {
+        els.dirDrop.addEventListener(type, function (event) {
+            event.preventDefault();
+            els.dirDrop.classList.add('dragging');
+        });
+    });
+    ['dragleave', 'dragend'].forEach(function (type) {
+        els.dirDrop.addEventListener(type, function () {
+            els.dirDrop.classList.remove('dragging');
+        });
+    });
+    els.dirDrop.addEventListener('drop', async function (event) {
+        event.preventDefault();
+        els.dirDrop.classList.remove('dragging');
+        if (!event.dataTransfer) return;
+        try {
+            const files = await filesFromDataTransfer(event.dataTransfer);
+            if (!files.length) {
+                hint('没有识别到可扫描的 .txt / .json / .weakpack 文件');
+                return;
+            }
+            await scanSource(files, { silent: false });
+        } catch (e) {
+            hint('读取拖入文件夹失败：' + (e && e.message ? e.message : e));
+        }
+    });
+
     const childInput = document.getElementById('childName');
     if (childInput) {
         childInput.addEventListener('input', debounce(function () {
             reload();
+            state.dir.lastScan = null;
             render();
+            renderDir();
         }, 350));
     }
 
@@ -684,6 +1099,8 @@ export function initWeakPanel(options) {
     checkHashImport();
     syncOutboxes(true);
     render();
+    renderDir();
+    restoreDir();
 
     return {
         refresh: function () { reload(); render(); },

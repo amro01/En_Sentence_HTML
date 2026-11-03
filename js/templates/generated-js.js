@@ -1312,11 +1312,15 @@ ${WEAK_RUNTIME_SOURCE}
                     const report = generateReport();
                     const today = new Date();
                     const dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
-                    let filename;
-                    if (result.stars === 6) filename = dateStr + '_6月极速大师勋章';
-                    else if (result.allTrapsFound) filename = dateStr + '_' + result.stars + '星勋章_超级侦探';
-                    else filename = dateStr + '_' + result.stars + '星勋章';
-                    filename += '.txt';
+                    // 文件名统一为 YYYY-MM-DD_[孩子名]_[PracticeId]_勋章.txt：
+                    // 生成器的成绩监控目录据此稳定追踪每一份练习反馈。
+                    const safeChild = String(CONFIG.childName || '宝贝')
+                        .replace(/[\\\\/:*?"<>|\\s]+/g, '_')
+                        .replace(/^_+|_+$/g, '')
+                        .slice(0, 20) || '宝贝';
+                    const practiceId = String(CONFIG.practiceId || 'practice')
+                        .replace(/[^A-Za-z0-9_-]+/g, '') || 'practice';
+                    const filename = dateStr + '_' + safeChild + '_' + practiceId + '_勋章.txt';
                     const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
@@ -1326,6 +1330,11 @@ ${WEAK_RUNTIME_SOURCE}
                     a.click();
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
+                    const saveHintEl = document.querySelector('.save-hint');
+                    if (saveHintEl) {
+                        saveHintEl.textContent = '💡 把勋章文件放进生成器设定的「成绩监控目录」，下次打开生成器点「立即扫描」即可自动追踪复习进度！';
+                    }
+                    showHint('💡 勋章已下载：放入「成绩监控目录」，生成器会自动追踪复习进度');
                     starDisplayEl.scrollIntoView({ behavior: 'smooth' });
                 }
 
