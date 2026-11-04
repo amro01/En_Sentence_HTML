@@ -59,7 +59,7 @@ const FILTER_OPTIONS = [
     ['due', '待复习（到期/手动）'],
     ['weak', '全部生疏'],
     ['manual', '仅手动标记'],
-    ['trap', '仅陷阱句'],
+    ['trap', '仅同伴错句'],
     ['all', '全部（含毕业）'],
     ['graduated', '仅已毕业']
 ];
@@ -75,7 +75,7 @@ const SORT_OPTIONS = [
 const REC_MODE_OPTIONS = [
     ['all', '全量待复习'],
     ['frequent', '仅高频错题'],
-    ['trap', '仅陷阱失误题']
+    ['trap', '仅同伴错句失误']
 ];
 
 /** 「批量自选复习」列表展示的推荐条数 */
@@ -86,7 +86,7 @@ const PANEL_HTML = `
     <span class="weak-stat">生疏 <b id="weakStatWeak">0</b></span>
     <span class="weak-stat">到期 <b id="weakStatDue">0</b></span>
     <span class="weak-stat">手动 <b id="weakStatManual">0</b></span>
-    <span class="weak-stat">陷阱 <b id="weakStatTrap">0</b></span>
+    <span class="weak-stat">同伴错句 <b id="weakStatTrap">0</b></span>
     <span class="weak-stat">毕业 <b id="weakStatGraduated">0</b></span>
     <button type="button" class="weak-mini-btn" id="weakSyncBtn">🔄 同步练习记录</button>
     <button type="button" class="weak-mini-btn" id="weakExportBtn">📤 导出备份</button>
@@ -399,7 +399,7 @@ export function initWeakPanel(options) {
                 meta.appendChild(chip(URGENCY_META[urgency].label, 'urgency ' + urgency));
             }
             meta.appendChild(chip('分 ' + (entry.ewmaScore || 0), 'score'));
-            if (entry.isTrap) meta.appendChild(chip('🕵️ 陷阱', 'trap'));
+            if (entry.isTrap) meta.appendChild(chip('🎭 同伴错句', 'trap'));
             if (entry.status === 'graduated') meta.appendChild(chip('🎓 已毕业', 'graduated'));
             if (entry.failCount) meta.appendChild(chip('失败 ' + entry.failCount));
             if (entry.successStreak) meta.appendChild(chip('连续达标 ' + entry.successStreak));
@@ -426,7 +426,7 @@ export function initWeakPanel(options) {
             }
 
             if (entry.isTrap && entry.trapEn) {
-                actions.appendChild(makeButton('🕵️ 陷阱形式复习', 'weak-action', function () {
+                actions.appendChild(makeButton('🎭 让同伴说错这句', 'weak-action', function () {
                     addTrapCard(entry);
                 }));
             }
@@ -507,7 +507,7 @@ export function initWeakPanel(options) {
         const meta = make('div', 'weak-rec-meta');
         meta.appendChild(chip(URGENCY_META[item.urgency].label, 'urgency ' + item.urgency));
         meta.appendChild(chip('推荐 ' + item.score + ' 分'));
-        if (entry.isTrap) meta.appendChild(chip('🕵️ 陷阱', 'trap'));
+        if (entry.isTrap) meta.appendChild(chip('🎭 同伴错句', 'trap'));
         if (entry.failCount) meta.appendChild(chip('失败 ' + entry.failCount));
         if (item.breakdown.overdueDays) meta.appendChild(chip('逾期 ' + item.breakdown.overdueDays + ' 天', 'due'));
         main.appendChild(meta);
@@ -524,7 +524,7 @@ export function initWeakPanel(options) {
         }
     }
 
-    // 复习句若原本是陷阱句，自动回填对照英文并勾选陷阱，避免丢失配置
+    // 复习句若原本是同伴错句，自动回填对照英文并勾选同伴抢答，避免丢失配置
     function cardOptionsFor(entry) {
         const trapEn = String(entry.trapEn || '').trim();
         if (entry.isTrap && trapEn) {
@@ -588,7 +588,7 @@ export function initWeakPanel(options) {
             weak: { id: entry.id, reviewCount: entry.reviewCount || 0 }
         });
         if (typeof opts.afterAdd === 'function') opts.afterAdd();
-        hint('已按陷阱形式填入');
+        hint('已按同伴错句填入');
         render();
     }
 

@@ -711,8 +711,7 @@ export function describeWeakReasons(entry, cfgInput) {
     if (entry && entry.manualWeak) reasons.push('手动标记');
     if (sig && sig.time > cfg.timeLimit) reasons.push('思考' + sig.time + '秒');
     if (sig && sig.replay > cfg.replayLimit) reasons.push('重听' + sig.replay + '次');
-    if (sig && sig.isTrap && sig.trapAutoRevealed) reasons.push('陷阱自动现形');
-    else if (sig && sig.isTrap && !sig.trapCaught) reasons.push('陷阱未抓获');
+    if (sig && sig.isTrap && !sig.trapCaught) reasons.push('同伴错句未辨析');
     if (!reasons.length) reasons.push('综合不熟练');
     return reasons.join(' / ');
 }

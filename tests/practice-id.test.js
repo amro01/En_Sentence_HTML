@@ -19,16 +19,18 @@ test('Practice_ID：与原算法一致（含 trap checkbox 的 "on"）', () => {
 
 test('Practice_ID：卡片输出不含隐藏 input，且保留 class="card" 字面量', async () => {
     const source = await readFile(new URL('../js/main.js', import.meta.url), 'utf8');
+    const cardSource = await readFile(new URL('../js/templates/card-html.js', import.meta.url), 'utf8');
 
     assert.ok(source.includes("from './weak/practice-id.js'"));
     assert.ok(source.includes('computePracticeId(date, values)'));
     assert.ok(!source.includes('type="hidden"'));
 
-    const start = source.indexOf('<div class="card" data-english=');
-    const end = source.indexOf('`;', start);
+    // v2.8 起所有卡片共用一份统一模板
+    const start = cardSource.indexOf('<div class="card" data-english=');
+    const end = cardSource.indexOf('`;', start);
     assert.ok(start >= 0 && end > start, '找不到生成卡片的模板字符串');
 
-    const cardTemplate = source.slice(start, end);
+    const cardTemplate = cardSource.slice(start, end);
     assert.ok(cardTemplate.includes('class="card" data-english='), 'class="card" 字面量被改动');
     assert.ok(cardTemplate.includes('data-zh='));
     assert.ok(cardTemplate.includes('data-weak-id='));
@@ -36,4 +38,7 @@ test('Practice_ID：卡片输出不含隐藏 input，且保留 class="card" 字�
     assert.ok(!cardTemplate.includes('weak-toggle'), '卡片不应再出现手动复习按钮');
     assert.ok(!cardTemplate.includes('需复习'), '卡片不应出现负面标签字样');
     assert.ok(!cardTemplate.includes('<input'), '练习卡片模板不应新增 input');
+
+    const templateCount = cardSource.split('<div class="card" data-english=').length - 1;
+    assert.equal(templateCount, 1, '所有卡片应共用一份统一模板');
 });

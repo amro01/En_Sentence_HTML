@@ -18,7 +18,7 @@ label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
 }
 
 .card-item.trap-card {
-    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式陷阱卡背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
+    background: #DDBBD6; /* 同伴错句卡片颜色 */
     border-color: #ce93d8;
 }
 
@@ -37,7 +37,7 @@ label { display: block; margin-bottom: 5px; font-weight: bold; color: #333; }
 }
 
 .card-item.trap-card .sort-buttons {
-    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式陷阱卡排序按钮背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
+    background: #DDBBD6; /* 同伴错句卡片排序按钮颜色 */
 }
 
 .sort-btn {
@@ -202,23 +202,140 @@ button:hover {
 }
 .trap-extra-field textarea {
     border-color: #ce93d8;
-    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式对照文本输入框背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
+    background: #f6edf9;
 }
 
-/* --- Detective Settings Section --- */
-.detective-settings {
-    background: #DDBBD6; /* DETECTIVE_BG_COLOR - 侦探模式设置区块背景色，如需替换请搜索 DETECTIVE_BG_COLOR */
+/* --- Peer Relay Settings Section --- */
+.peer-settings {
+    background: #f6edf9;
     border: 1px solid #ce93d8;
     border-radius: 8px;
     padding: 15px;
     margin-top: 10px;
 }
-.detective-settings label {
+.peer-settings label {
     color: #6a1b9a;
 }
-.detective-settings input {
-    border-color: #ce93d8;
+
+/* --- AI Assistant Settings --- */
+.ai-settings {
+    background: linear-gradient(135deg, #eef4ff 0%, #f5f0ff 100%);
+    border: 1px solid #b9c9f5;
+    border-radius: 12px;
+    padding: 0 16px 4px;
 }
+.ai-settings summary {
+    cursor: pointer;
+    padding: 14px 0;
+    font-weight: bold;
+    color: #1e3a8a;
+    list-style: none;
+    user-select: none;
+}
+.ai-settings summary::-webkit-details-marker { display: none; }
+.ai-settings summary::after {
+    content: '▾';
+    float: right;
+    color: #6b7db3;
+    transition: transform 0.2s ease;
+}
+.ai-settings[open] summary::after { transform: rotate(180deg); }
+.ai-settings[open] summary { border-bottom: 1px solid #d5def5; margin-bottom: 14px; }
+.ai-summary-hint {
+    font-weight: normal;
+    font-size: 0.78em;
+    color: #64748b;
+}
+.ai-fields .form-group { margin-bottom: 12px; }
+.ai-fields label { color: #1e3a8a; }
+.ai-fields input,
+.ai-fields select {
+    width: 100%;
+    margin: 6px 0 0;
+    padding: 10px 12px;
+    border: 1px solid #cbd7f3;
+    border-radius: 6px;
+    font-size: 15px;
+    box-sizing: border-box;
+    background: #fff;
+}
+.ai-fields input:focus,
+.ai-fields select:focus {
+    outline: none;
+    border-color: #6366f1;
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12);
+}
+.ai-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 4px 0 8px;
+}
+button.btn-ai-test {
+    background: #4f46e5;
+    padding: 10px 16px;
+    font-size: 14px;
+    margin: 0;
+    flex: 0 0 auto;
+}
+button.btn-ai-test:hover:not(:disabled) { background: #4338ca; }
+button.btn-ai-test:disabled { opacity: 0.6; cursor: wait; }
+.ai-test-status {
+    font-size: 0.85em;
+    color: #475569;
+    flex: 1 1 180px;
+}
+.ai-test-status.success { color: #15803d; }
+.ai-test-status.error { color: #b91c1c; white-space: pre-line; }
+
+/* --- Card-level AI tools --- */
+.ai-card-tools {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 10px 0 6px;
+    padding: 10px;
+    background: #eef4ff;
+    border: 1px dashed #b9c9f5;
+    border-radius: 8px;
+}
+button.ai-generate-btn {
+    background: #7c3aed;
+    padding: 9px 14px;
+    font-size: 14px;
+    margin: 0;
+    flex: 0 0 auto;
+}
+button.ai-generate-btn:hover:not(:disabled) { background: #6d28d9; }
+button.ai-generate-btn:disabled { opacity: 0.65; cursor: wait; }
+.ai-peer-option {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0;
+    color: #4c1d95;
+    font-weight: normal;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+.ai-peer-option input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    padding: 0;
+    cursor: pointer;
+    transform: scale(1.2);
+}
+.ai-card-status {
+    flex: 1 1 100%;
+    min-height: 1.2em;
+    font-size: 0.82em;
+    color: #475569;
+}
+.ai-card-status.success { color: #15803d; }
+.ai-card-status.error { color: #b91c1c; white-space: pre-line; }
+.ai-card-status.loading { color: #4f46e5; }
 
 /* --- Style for Explanation Box in Generator --- */
 .explanation-item {

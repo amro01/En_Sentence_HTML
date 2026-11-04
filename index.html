@@ -3,12 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>练习网页生成器 v2.6（成绩监控 + 智能推荐复习版）</title>
+    <title>练习网页生成器 v2.8（同伴抢答 + 起手式布局）</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
     <div class="container">
-        <h2>练习网页生成器 v2.6（成绩监控 + 智能推荐复习版）</h2>
+        <h2>练习网页生成器 v2.8（同伴抢答 + 起手式布局）</h2>
+
+        <details class="card-form ai-settings" id="aiSettings">
+            <summary>⚙️ AI 助手配置 <span class="ai-summary-hint">（可选 · 用于一键生成起手式与同伴错句）</span></summary>
+            <div class="ai-fields">
+                <div class="form-group">
+                    <label for="aiBaseUrl">API Base URL</label>
+                    <input type="text" id="aiBaseUrl" value="https://open.bigmodel.cn/api/paas/v4" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="form-group">
+                    <label for="aiApiKey">API Key</label>
+                    <input type="password" id="aiApiKey" placeholder="仅保存在本机浏览器，不会写入生成的练习页" autocomplete="new-password" spellcheck="false">
+                </div>
+                <div class="form-group">
+                    <label for="aiModelSelect">模型选择</label>
+                    <select id="aiModelSelect">
+                        <option value="GLM-4.7-Flash">GLM-4.7-Flash（推荐）</option>
+                        <option value="GLM-4-Flash-250414">GLM-4-Flash-250414（极速备选）</option>
+                        <option value="__custom__">自定义模型…</option>
+                    </select>
+                    <input type="text" id="aiModelCustom" placeholder="自定义模型名称（填写后覆盖下拉选择）" spellcheck="false" autocomplete="off">
+                </div>
+                <div class="ai-actions">
+                    <button type="button" id="aiTestBtn" class="btn-ai-test">🔌 测试连接</button>
+                    <span id="aiTestStatus" class="ai-test-status" role="status" aria-live="polite"></span>
+                </div>
+                <p class="hint-text">🔒 API Key 只写入本机 <code>localStorage</code>（键名 <code>EnSentence_AI_Config</code>），不会随练习网页导出或上传。若测试连接失败并提示 CORS，请确认所用模型服务允许浏览器直连。</p>
+            </div>
+        </details>
 
         <div class="card-form">
             <h3>1. 设置基本信息</h3>
@@ -35,11 +63,10 @@
             </div>
         </div>
 
-        <div class="card-form detective-settings">
-            <h3>4. 🕵️ 侦探模式设置</h3>
+        <div class="card-form peer-settings">
+            <h3>4. 🎭 同伴抢答设置</h3>
             <div class="form-group">
-                <label>侦探搜查机会: <input type="number" id="detectiveChances" value="0" min="0" class="input-med" onchange="onDetectiveChancesChange()"></label>
-                <p class="hint-text">💡 设置为陷阱的卡片会自动计算机会数（陷阱数×2），也可手动修改</p>
+                <p class="hint-text">💡 勾选「让同伴抢答时说错这句」的卡片 100% 触发抢答；普通卡片每份练习随机抽取 0~2 张，由同伴说出完全正确的句子。孩子辨析通过后才会解锁自己的起手式练习。</p>
             </div>
         </div>
 
@@ -76,12 +103,14 @@
     <div class="instructions">
         <h3>📖 使用指南</h3>
         <p><strong>📝 基本操作</strong> — 日期自动填充当天；点击"添加卡片"创建练习项，填写英文段落与中文翻译；可点击"删除此条"移除卡片。</p>
+        <p><strong>✨ AI 智能生成</strong> — 展开顶部「⚙️ AI 助手配置」，填写 OpenAI 兼容的 API Base URL、API Key 与模型（默认智谱 GLM-4.7-Flash），点「🔌 测试连接」确认可用。之后在每张卡片点「✨ AI 智能生成」，会根据中文生成 2~3 个正确表达与起手式；勾选「同时生成同伴抢答错句」还会生成错句、3~4 个意群胶囊和温和讲解，并自动切换为陷阱卡。配置只存本机 <code>localStorage</code>，API Key 不会写进下载的练习页。</p>
         <p><strong>🔄 排序与说明框</strong> — 点击卡片左侧 ↑/↓ 调整顺序（首尾按钮自动禁用）；点击"添加说明框"插入解释文本，支持基础 HTML 标签。</p>
         <p><strong>🎤 多角色朗读</strong> — 英文中用 <code>M: Hello!</code> 或 <code>Wang Mei：你好</code> 格式标记角色，朗读时自动匹配男/女声。支持 M(男)、F/Wang Mei/Jenny/Amy 等(女)、Li Ming/Tom/Jack 等(男)。</p>
         <p><strong>⭐ 评价与勋章</strong> — 🎧 每完整听一次点亮一个耳机图标，满 3 个卡片变金色；⭐ 思考达标 或 打磨≥3 次之一即可获五星；🌙 所有句子在半速内完成且重听≤1 次获 6 月亮；🧹 点击"清空记录"重新挑战。</p>
-        <p><strong>🕵️ 侦探模式</strong> — 勾选"设为陷阱句"后，孩子找出故意写错的句子；🔍 点击英文即"举报"，成功抓获得纸屑庆祝，误报扣除机会。</p>
+        <p><strong>🎭 同伴抢答</strong> — 被标记的卡片会出现一位随机同伴（小明 / 小熊 / 青蛙 / 玲玲），把句子切成 3~4 个意群胶囊。陷阱卡里同伴会说错一句，孩子点出错误意群即可；普通卡里同伴说对了，孩子点「👍 这句没问题！」即可。辨析通过后，同伴气泡收起成右上角小徽章。</p>
+        <p><strong>🚀 起手式布局</strong> — 所有卡片统一显示清晰中文；阶段 1 通过后，左侧出现句首起手式（前 2~3 词），右侧整句默认隐藏。孩子选定起手式后点击右侧槽位，整句淡入并朗读。</p>
         <p><strong>📂 成绩反馈监控目录</strong> — 在第 5 节点「📂 设定/切换成绩目录」选择存放勋章 TXT / 错题包 JSON 的文件夹。生成器会把目录授权存进 IndexedDB，刷新页面自动恢复；每天只需把新勋章丢进该目录，点「🔄 立即扫描更新」即可自动解析全部反馈、按 Practice_ID 去重并合并复习进度。不支持目录授权的浏览器可用「选择文件夹（降级）」或直接拖拽整个文件夹到监控区。</p>
-        <p><strong>🎯 智能推荐复习</strong> — 推荐分综合手动红标、遗忘曲线到期、历史失败次数与毕业观察期，给出 0~100 分排序与 🔴 极度生疏 / 🟠 到期复习 / 🟡 观察中 / ⭐ 手动重点 标识。「填入推荐 3 句 / 5 句」一键成卡；「批量自选复习」可自由勾选后填入。复习句若是陷阱句，会自动回填对照英文并勾选陷阱。连续 2 次快速通过自动毕业，避免无限堆积。</p>
+        <p><strong>🎯 智能推荐复习</strong> — 推荐分综合手动红标、遗忘曲线到期、历史失败次数与毕业观察期，给出 0~100 分排序与 🔴 极度生疏 / 🟠 到期复习 / 🟡 观察中 / ⭐ 手动重点 标识。「填入推荐 3 句 / 5 句」一键成卡；「批量自选复习」可自由勾选后填入。复习句若是同伴错句，会自动回填对照英文并勾选同伴抢答。连续 2 次快速通过自动毕业，避免无限堆积。</p>
         <p><strong>🔁 生疏句循环复习</strong> — 练习页静默自动判弱（孩子端无「错题/复习」标签），完成后家长在页面底部「家长审计」区勾选圆点手动标记；领取勋章时下载的 TXT 命名为 <code>YYYY-MM-DD_孩子名_PracticeId_勋章.txt</code>，放入成绩监控目录即可被自动追踪。也仍支持复制 / 回传 / 导入错题包。</p>
         <p><strong>🔒 家长审计</strong> — 启用家长锁后，重置需数学验证；系统自动记录首轮测试快照和重置次数，生成勋章时强制附加家长审计数据；思考时间<0.5秒触发异常标记，<1.0秒无法获得6月亮评价。</p>
         <p><strong>📦 生成与下载</strong> — 点击"生成练习网页"预览代码，点击"下载 HTML 文件"保存为独立网页。</p>

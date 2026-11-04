@@ -160,6 +160,7 @@ function createEnvironment(options) {
     body.appendChild(card);
 
     const cards = [card];
+    let trapCardRef = null;
     if (config.trap) {
         const trapChinese = new FakeElement('div');
         trapChinese.className = 'chinese';
@@ -171,12 +172,23 @@ function createEnvironment(options) {
         trapCard.className = 'card';
         trapCard._isCard = true;
         trapCard.dataset.cardIndex = '1';
-        trapCard.dataset.english = encodeURIComponent('I have went to school.');
+        trapCard.dataset.english = encodeURIComponent('I have gone to school.');
         trapCard.dataset.zh = encodeURIComponent('我去过学校。');
+        trapCard.dataset.peerRelay = JSON.stringify({
+            has_peer: true,
+            peer_name: '小熊',
+            peer_avatar: '🐻',
+            is_peer_correct: false,
+            chunks: ['I have went', 'to school.'],
+            error_chunk_index: 0,
+            error_explanation: '这里应该用 gone，而不是 went 哦！',
+            correct_variants: ['I have gone to school.']
+        });
         trapCard.appendChild(trapChinese);
         trapCard.appendChild(trapEnergy);
         body.appendChild(trapCard);
         cards.push(trapCard);
+        trapCardRef = trapCard;
     }
 
     // 生成页模板中的「家长审计区」：默认收起，孩子端不可见
@@ -286,7 +298,7 @@ function createEnvironment(options) {
     );
 
     return {
-        CONFIG, card, stats, traps, hints, opened, document, created,
+        CONFIG, card, trapCard: trapCardRef, stats, traps, hints, opened, document, created,
         get copied() { return copied; },
         WeakReview: window.WeakReview,
         localStorage
@@ -457,7 +469,7 @@ test('运行时：陷阱统计跨错误键/正确键合并', () => {
     const right = 'I have gone to school.';
     env.stats[wrong] = { time: 12, replay: 1, mastery_count: 0, count: 1 };
     env.stats[right] = { time: 8, replay: 2, mastery_count: 2, count: 1 };
-    env.traps[1] = { isCaught: true, autoRevealed: false, wrongReadCount: 1 };
+    env.trapCard.dataset.peerResolved = 'true';
 
     env.WeakReview.finalize('claim');
 

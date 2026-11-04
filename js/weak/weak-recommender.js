@@ -42,7 +42,7 @@ export function normalizeRecommendMode(mode) {
     return RECOMMEND_MODES.indexOf(value) >= 0 ? value : 'all';
 }
 
-/** 陷阱失误：未抓获 / 自动现形 / 读错过；无观察记录时按“待确认”计入 */
+/** 同伴错句失误：未辨析 / 读错过；无观察记录时按“待确认”计入 */
 export function isTrapMistake(entry) {
     if (!entry || !entry.isTrap) return false;
     const sig = entry.lastSignals || null;

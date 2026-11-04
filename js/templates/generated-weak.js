@@ -13,7 +13,7 @@
  *
  * 设计约束：
  * 1. 整段代码包在一个 IIFE 里，只向 window 暴露一个 WeakReview 命名空间。
- * 2. 运行时可访问生成页同作用域的 CONFIG / appState / getStats() / getTrapState() /
+ * 2. 运行时可访问生成页同作用域的 CONFIG / appState / getStats() /
  *    showHint()，这些标识符由 generated-js.js 提供。
  * 3. 本文件不直接写全局生疏池，只写本页 Outbox（WEAK_OUTBOX_<practiceId>）；
  *    生成器是生疏池的唯一写入者。
@@ -114,16 +114,12 @@ ${toBase64Url.toString()}
     function cardInfo(card) {
         var cardIndex = parseInt(card.dataset.cardIndex, 10);
         var currentEn = decodeSafe(card.dataset.english || '');
-        var trap = null;
-        if (CONFIG.trapData && CONFIG.trapData.length) {
-            for (var i = 0; i < CONFIG.trapData.length; i++) {
-                if (CONFIG.trapData[i].index === cardIndex) {
-                    trap = CONFIG.trapData[i];
-                    break;
-                }
-            }
+        var peer = null;
+        if (card.dataset.peerRelay) {
+            try { peer = JSON.parse(card.dataset.peerRelay); } catch (e) { peer = null; }
         }
-        var en = trap ? trap.correct : currentEn;
+        var isTrap = !!(peer && peer.has_peer && !peer.is_peer_correct);
+        var en = currentEn;
         var zh = card.dataset.zh ? decodeSafe(card.dataset.zh) : '';
         if (!zh) {
             var zhEl = card.querySelector('.chinese');
@@ -131,11 +127,12 @@ ${toBase64Url.toString()}
         }
         return {
             cardIndex: cardIndex,
-            trap: trap,
+            peer: peer,
+            isTrap: isTrap,
             currentEn: currentEn,
             en: en,
             zh: zh,
-            trapEn: trap ? trap.english : ''
+            trapEn: isTrap ? (peer.chunks || []).join(' ') : ''
         };
     }
 
@@ -144,19 +141,19 @@ ${toBase64Url.toString()}
         if (!info.en) return null;
         var box = loadOutbox();
         var stats = getStats();
-        var ts = getTrapState(info.cardIndex) || {};
+        var peerResolved = card.dataset.peerResolved === 'true';
         var sig = {
             time: 0,
             replay: 0,
             mastery: 0,
             count: 0,
-            isTrap: !!info.trap,
-            trapCaught: !!ts.isCaught,
-            trapAutoRevealed: !!ts.autoRevealed,
-            wrongReadCount: ts.wrongReadCount || 0
+            isTrap: !!info.isTrap,
+            trapCaught: !info.isTrap || peerResolved,
+            trapAutoRevealed: false,
+            wrongReadCount: 0
         };
-        // 陷阱抓获后 data-english 会切换为正确文本，统计键会分裂：
-        // 同时读取「当前显示 / 目标正确 / 陷阱错句」三个键，按对象去重后合并。
+        // 同伴错句的统计键可能在历史数据里分裂成「当前显示 / 目标正确 / 错句」，
+        // 同时读取三个键，按对象去重后合并。
         var statKeys = [info.currentEn, info.en, info.trapEn];
         var seenStats = [];
         for (var k = 0; k < statKeys.length; k++) {
@@ -174,7 +171,7 @@ ${toBase64Url.toString()}
             id: id,
             en: info.en,
             zh: info.zh,
-            isTrap: !!info.trap,
+            isTrap: !!info.isTrap,
             trapEn: info.trapEn,
             sig: sig,
             attempted: sig.count > 0 || sig.replay > 0,
@@ -209,8 +206,7 @@ ${toBase64Url.toString()}
         if (entry.manualWeak) reasons.push('手动标记');
         if ((sig.time || 0) > cfg.timeLimit) reasons.push('思考' + sig.time + '秒');
         if ((sig.replay || 0) > cfg.replayLimit) reasons.push('重听' + sig.replay + '次');
-        if (sig.isTrap && sig.trapAutoRevealed) reasons.push('陷阱自动现形');
-        else if (sig.isTrap && !sig.trapCaught) reasons.push('陷阱未抓获');
+        if (sig.isTrap && !sig.trapCaught) reasons.push('同伴错句未辨析');
         if (!reasons.length) reasons.push('综合不熟练');
         return reasons.join(' / ');
     }
@@ -289,8 +285,7 @@ ${toBase64Url.toString()}
         var parts = [];
         if ((sig.time || 0) > cfg.timeLimit) parts.push('思考' + sig.time + '秒');
         if ((sig.replay || 0) > cfg.replayLimit) parts.push('重听' + sig.replay + '次');
-        if (sig.isTrap && sig.trapAutoRevealed) parts.push('陷阱自动现形');
-        else if (sig.isTrap && !sig.trapCaught) parts.push('陷阱未抓获');
+        if (sig.isTrap && !sig.trapCaught) parts.push('同伴错句未辨析');
         var score = (entry && typeof entry.score === 'number') ? entry.score : computeWeakScore(sig, cfg);
         var head = obs.manualWeak ? '手动 · ' : (score >= cfg.weakThreshold ? '自动 · ' : '自动 · 暂无需复习 · ');
         return head + (parts.length ? parts.join(' / ') + ' · ' : '') + '生疏分 ' + score;

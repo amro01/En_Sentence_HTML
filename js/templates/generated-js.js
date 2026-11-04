@@ -22,9 +22,6 @@ export function buildGeneratedJS(config) {
                     replayLimit: ${Number(config.replayLimit) || 3},
                     timeLimit: ${Number(config.timeLimit) || 15},
                     masteryThreshold: ${Number(config.masteryThreshold) || 3},
-                    detectiveChances: ${Number(config.detectiveChances) || 0},
-                    trapCount: ${Number(config.trapCount) || 0},
-                    trapData: ${jsLiteral(config.trapData || [])},
                     parentLockEnabled: ${config.parentLockEnabled ? 'true' : 'false'},
                     parentPasscode: ${jsLiteral(config.parentPasscode || '')},
                     totalSentences: ${Number(config.totalSentences) || 0},
@@ -65,42 +62,23 @@ export function buildGeneratedJS(config) {
                 // appState 结构:
                 // {
                 //   stats: { [sentenceText]: { replay, time, count, mastery_count } },
-                //   trapsState: { [cardIndex]: { isCaught: bool, hasBeenRead: bool, wrongReadCount: number, autoRevealed: bool, isSearched: bool } },
-                //   remainingChances: number,
-                //   foundTraps: [cardIndex, ...]
+                //   peerResolved: { [cardIndex]: true }
                 // }
                 // ============================================================
 const appState = loadAppState();
 let sessionStartTime = null;
 
-// Cached DOM references（注意：cards 已废弃！请使用 getCardByIndex() / getCardByEnglish() 替代）
-const chanceIconsEl = document.getElementById('chance-icons');
+// Cached DOM references
 const starDisplayEl = document.getElementById('star-display');
 const starRatingEl = document.getElementById('star-rating');
 const medalMsgEl = document.getElementById('medal-message');
-const detSummaryEl = document.getElementById('detective-summary');
 
 
                 function getDefaultAppState() {
                     return {
                         stats: {},
-                        trapsState: {},
-                        remainingChances: CONFIG.detectiveChances,
-                        foundTraps: []
+                        peerResolved: {}
                     };
-                }
-
-                function ensureTrapState(parsed, cardIndex) {
-                    if (!parsed.trapsState[cardIndex]) {
-                        parsed.trapsState[cardIndex] = { isCaught: false, wrongReadCount: 0, autoRevealed: false, isSearched: false };
-                    } else {
-                        // Migration: ensure all fields exist
-                        const t = parsed.trapsState[cardIndex];
-                        if (t.wrongReadCount === undefined) t.wrongReadCount = 0;
-                        if (t.autoRevealed === undefined) t.autoRevealed = false;
-                        if (t.isSearched === undefined) t.isSearched = false;
-                    }
-                    return parsed;
                 }
 
                 function loadAppState() {
@@ -108,17 +86,18 @@ const detSummaryEl = document.getElementById('detective-summary');
                     if (saved) {
                         try {
                             const parsed = JSON.parse(saved);
-                            if (!parsed.trapsState) parsed.trapsState = {};
-                            // Initialize trapsState for ALL cards (both trap and normal)
-                            document.querySelectorAll('.card[data-english]').forEach(card => {
-                                const ci = parseInt(card.dataset.cardIndex);
-                                if (!isNaN(ci)) ensureTrapState(parsed, ci);
-                            });
-                            // Also ensure trapData indices are covered
-                            CONFIG.trapData.forEach(t => ensureTrapState(parsed, t.index));
-                            if (parsed.remainingChances === undefined) parsed.remainingChances = CONFIG.detectiveChances;
-                            if (!parsed.foundTraps) parsed.foundTraps = [];
                             if (!parsed.stats) parsed.stats = {};
+                            if (!parsed.peerResolved) parsed.peerResolved = {};
+                            // v2.6/v2.7 的侦探状态迁移：已抓获的卡片视为已完成同伴辨析
+                            if (parsed.trapsState) {
+                                Object.keys(parsed.trapsState).forEach(function(index) {
+                                    const trap = parsed.trapsState[index];
+                                    if (trap && (trap.isCaught || trap.autoRevealed)) parsed.peerResolved[index] = true;
+                                });
+                            }
+                            delete parsed.trapsState;
+                            delete parsed.remainingChances;
+                            delete parsed.foundTraps;
                             return parsed;
                         } catch(e) {
                             return getDefaultAppState();
@@ -131,33 +110,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                     localStorage.setItem(CONFIG.practiceId, JSON.stringify(appState));
                 }
 
-                // ============================================================
-                //  统一卡片寻址：通过唯一标识查找 DOM 卡片（替代 cards[index]）
-                // ============================================================
-
-                /**
-                 * 通过英文原文精确查找 DOM 卡片
-                 * @param {string} englishText - 解码后的英文原文
-                 * @returns {Element|null} 匹配的 .card 元素，未找到返回 null
-                 */
-                function getCardByEnglish(englishText) {
-                    return Array.from(document.querySelectorAll('.card')).find(c =>
-                        c.dataset.english && decodeURIComponent(c.dataset.english) === englishText
-                    );
-                }
-
-                /**
-                 * 通过 data-card-index 精确查找 DOM 卡片（用于陷阱操作）
-                 * @param {number|string} cardIndex - 卡片索引
-                 * @returns {Element|null} 匹配的 .card 元素，未找到返回 null
-                 */
-                function getCardByIndex(cardIndex) {
-                    return document.querySelector(\`.card[data-card-index="\${cardIndex}"]\`);
-                }
-
-                // Convenience getters
                 function getStats() { return appState.stats; }
-                function getTrapState(cardIndex) { return appState.trapsState[cardIndex] || null; }
 
                 // ============================================================
                 //  家长审计系统 (Parent Audit System)
@@ -276,62 +229,6 @@ const detSummaryEl = document.getElementById('detective-summary');
                     return true;
                 }
 
-                // ============================================================
-                //  卡片 UI 更新函数：根据 appState 决定显示内容 (Stealth Mode)
-                //  Uncaught traps look EXACTLY like normal sentences.
-                //  The ONLY difference: ear icons stay gray on re-read.
-                //  No trap-hint class, no energy-hint text, no purple glow.
-                // ============================================================
-                function updateCardUI(cardOrIndex) {
-                    // Accept either a card element or a numeric index
-                    const card = (typeof cardOrIndex === 'number')
-                        ? cards[cardOrIndex]
-                        : cardOrIndex;
-                    if (!card) return;
-
-                    const cardIndex = parseInt(card.dataset.cardIndex);
-                    if (isNaN(cardIndex)) return;
-
-                    const trapState = getTrapState(cardIndex);
-                    if (!trapState) return;
-
-                    if (trapState.isCaught) {
-                        const trapData = CONFIG.trapData.find(t => t.index === cardIndex);
-                        if (trapData) {
-                            const englishDiv = card.querySelector('.english');
-                            const encodedCorrect = encodeURIComponent(trapData.correct);
-                            card.dataset.english = encodedCorrect;
-                            card.classList.add('trap-caught');
-                            const diffHtml = computeDiff(trapData.english, trapData.correct);
-                            englishDiv.innerHTML = diffHtml;
-                            englishDiv.classList.add('visible');
-                            wrapTextNodesInElement(englishDiv);
-                            const energyBar = card.querySelector('.energy-bar');
-                            if (energyBar) updateEnergyBar(energyBar, 0, card);
-                        }
-                    } else {
-                        // === Uncaught trap: NO visual hint at all ===
-                        const trapData = CONFIG.trapData.find(t => t.index === cardIndex);
-                        if (trapData) {
-                            const encodedTrap = encodeURIComponent(trapData.english);
-                            card.dataset.english = encodedTrap;
-                        }
-                    }
-                }
-
-                // --- Chance Display (实时更新) ---
-                function updateChanceDisplay() {
-                    if (!chanceIconsEl) return;
-                    const total = CONFIG.detectiveChances;
-                    const remaining = appState.remainingChances;
-                    const used = total - remaining;
-                    let html = '';
-                    for (let i = 0; i < total; i++) {
-                        html += i < used ? '<span class="used">🔍</span>' : '🔍';
-                    }
-                    chanceIconsEl.innerHTML = html || '—';
-                }
-
                 // --- Canvas Confetti ---
                 function startConfetti() {
                     const canvas = document.getElementById('confetti-canvas');
@@ -339,11 +236,11 @@ const detSummaryEl = document.getElementById('detective-summary');
                     const ctx = canvas.getContext('2d');
                     canvas.width = window.innerWidth;
                     canvas.height = window.innerHeight;
-                    
+
                     const pieces = [];
                     const colors = ['#ff6b6b','#ffd93d','#6bcb77','#4d96ff','#ff6b9d','#c44dff','#ff9800','#00bcd4'];
                     const count = 120;
-                    
+
                     for (let i = 0; i < count; i++) {
                         pieces.push({
                             x: Math.random() * canvas.width,
@@ -358,17 +255,17 @@ const detSummaryEl = document.getElementById('detective-summary');
                             opacity: 1
                         });
                     }
-                    
+
                     let frame = 0;
                     const maxFrames = 150;
-                    
+
                     function animate() {
                         if (frame > maxFrames) {
                             ctx.clearRect(0, 0, canvas.width, canvas.height);
                             return;
                         }
                         ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        
+
                         pieces.forEach(p => {
                             p.x += p.vx;
                             p.y += p.vy;
@@ -377,7 +274,7 @@ const detSummaryEl = document.getElementById('detective-summary');
                             if (frame > maxFrames - 30) {
                                 p.opacity = Math.max(0, (maxFrames - frame) / 30);
                             }
-                            
+
                             ctx.save();
                             ctx.translate(p.x, p.y);
                             ctx.rotate(p.rotation * Math.PI / 180);
@@ -386,11 +283,11 @@ const detSummaryEl = document.getElementById('detective-summary');
                             ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
                             ctx.restore();
                         });
-                        
+
                         frame++;
                         requestAnimationFrame(animate);
                     }
-                    
+
                     animate();
                 }
 
@@ -405,188 +302,296 @@ const detSummaryEl = document.getElementById('detective-summary');
 
 ${WEAK_RUNTIME_SOURCE}
 
-                // --- Escape diff words before they are inserted as HTML ---
-                function escapeDiffWord(value) {
-                    const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
-                    return String(value).replace(/[&<>"']/g, ch => map[ch]);
+                // --- Wrap text nodes into clickable word spans ---
+                function wrapTextNodesInElement(element) {
+                    if (!element) return;
+                    const childNodes = Array.from(element.childNodes);
+                    childNodes.forEach(node => {
+                        if (node.nodeType === Node.TEXT_NODE) {
+                            const text = node.textContent;
+                            if (text.trim() === '') return;
+
+                            const fragment = document.createDocumentFragment();
+                            const parts = text.split(/(\\s+)/);
+                            parts.forEach(part => {
+                                if (part.trim() === '') {
+                                    fragment.appendChild(document.createTextNode(part));
+                                } else {
+                                    const span = document.createElement('span');
+                                    span.className = 'word-span';
+                                    const cleanWord = part.replace(/[.,\\/#\\!$%\\^&\\*;:{}_~()?"'’\\-]/g, "").trim();
+                                    span.dataset.word = cleanWord;
+                                    span.textContent = part;
+                                    fragment.appendChild(span);
+                                }
+                            });
+                            element.replaceChild(fragment, node);
+                        } else if (node.nodeType === Node.ELEMENT_NODE) {
+                            if (!node.classList.contains('word-span')) {
+                                wrapTextNodesInElement(node);
+                            }
+                        }
+                    });
                 }
 
-                // --- Compute diff between wrong and correct text using word-level LCS ---
-                function computeDiff(wrongText, correctText) {
-                    const a = wrongText.split(/\\s+/);
-                    const b = correctText.split(/\\s+/);
-                    const m = a.length, n = b.length;
-                    
-                    // Build LCS DP table: dp[i][j] = LCS length of a[0..i-1] and b[0..j-1]
-                    const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
-                    for (let i = 1; i <= m; i++) {
-                        for (let j = 1; j <= n; j++) {
-                            dp[i][j] = a[i - 1] === b[j - 1]
-                                ? dp[i - 1][j - 1] + 1
-                                : Math.max(dp[i - 1][j], dp[i][j - 1]);
-                        }
+                // ============================================================
+                //  同伴抢答（Peer Relay）
+                //  ------------------------------------------------------------
+                //  阶段 1：同伴说出句子（陷阱卡 = 错句；随机普通卡 = 正确句）。
+                //          孩子点意群胶囊或「这句没问题」来辨析同伴。
+                //  阶段 2：辨析通过后解锁下方起手式练习区。
+                //  旧版侦探模式（放大镜 / 搜查机会 / 两击现形）已彻底移除。
+                // ============================================================
+
+                function getPeerData(card) {
+                    if (!card || !card.dataset.peerRelay) return null;
+                    try {
+                        const data = JSON.parse(card.dataset.peerRelay);
+                        return data && data.has_peer === true ? data : null;
+                    } catch (e) {
+                        return null;
                     }
-                    
-                    // Backtrack to find the diff operations
-                    const ops = [];
-                    let i = m, j = n;
-                    while (i > 0 || j > 0) {
-                        if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
-                            ops.push({ type: 'same', word: a[i - 1] });
-                            i--; j--;
-                        } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-                            ops.push({ type: 'ins', word: b[j - 1] });
-                            j--;
+                }
+
+                function getCardIndex(card) {
+                    const index = parseInt(card && card.dataset ? card.dataset.cardIndex : '', 10);
+                    return Number.isFinite(index) ? index : null;
+                }
+
+                function isPeerResolved(card) {
+                    const index = getCardIndex(card);
+                    if (index === null) return false;
+                    if (appState.peerResolved[index]) return true;
+                    // 兼容旧状态：已经练习过的卡片必然已经过了阶段 1
+                    const text = decodeURIComponent(card.dataset.english || '');
+                    const statItem = getStats()[text];
+                    return !!(statItem && statItem.count > 0);
+                }
+
+                function setStartEnabled(card, enabled) {
+                    const btn = card.querySelector('.start-slot-btn');
+                    if (btn) {
+                        btn.disabled = !enabled;
+                        if (enabled) btn.removeAttribute('aria-disabled');
+                        else btn.setAttribute('aria-disabled', 'true');
+                    }
+                    card.querySelectorAll('.starter-chip').forEach(chip => {
+                        chip.disabled = !enabled;
+                    });
+                    if (!enabled) {
+                        const slot = card.querySelector('.start-slot');
+                        if (slot) slot.classList.remove('ready');
+                    }
+                }
+
+                function lockForPeer(card) {
+                    card.setAttribute('data-peer-pending', 'true');
+                    card.classList.add('peer-pending');
+                    const englishDiv = card.querySelector('.english');
+                    if (englishDiv) englishDiv.classList.remove('visible');
+                    card.classList.remove('expanded');
+                    setStartEnabled(card, false);
+                }
+
+                function unlockStart(card) {
+                    card.removeAttribute('data-peer-pending');
+                    card.classList.remove('peer-pending');
+                    setStartEnabled(card, true);
+                }
+
+                function peerFeedback(card, kind, message) {
+                    const el = card.querySelector('.peer-feedback');
+                    if (!el) return;
+                    el.className = 'peer-feedback ' + kind;
+                    el.textContent = message;
+                }
+
+                function shakePeerBubble(card) {
+                    const bubble = card.querySelector('.peer-bubble');
+                    if (!bubble) return;
+                    bubble.classList.remove('shake');
+                    // 强制回流，确保连续误点也能重新播放抖动
+                    void bubble.offsetWidth;
+                    bubble.classList.add('shake');
+                    setTimeout(() => bubble.classList.remove('shake'), 650);
+                }
+
+                function collapsePeer(card, instant) {
+                    const bubble = card.querySelector('.peer-bubble');
+                    if (!bubble) return;
+                    bubble.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+                    if (instant) {
+                        bubble.classList.remove('peer-leaving');
+                        bubble.classList.add('resolved');
+                        return;
+                    }
+                    bubble.classList.add('peer-leaving');
+                    setTimeout(() => {
+                        bubble.classList.remove('peer-leaving');
+                        bubble.classList.add('resolved');
+                    }, 240);
+                }
+
+                function resolvePeer(card, message) {
+                    if (card.dataset.peerResolved === 'true') return;
+                    const index = getCardIndex(card);
+                    if (index === null) return;
+
+                    appState.peerResolved[index] = true;
+                    saveAppState();
+                    card.dataset.peerResolved = 'true';
+                    unlockStart(card);
+                    peerFeedback(card, 'success', message);
+
+                    const bubble = card.querySelector('.peer-bubble');
+                    if (bubble) {
+                        bubble.querySelectorAll('button').forEach(btn => { btn.disabled = true; });
+                    }
+                    setTimeout(() => collapsePeer(card, false), 1500);
+                }
+
+                function handlePeerChoice(card, peer, isOkButton, chunkIndex) {
+                    if (!peer) return;
+                    if (card.dataset.peerResolved === 'true') return;
+
+                    if (peer.is_peer_correct) {
+                        if (isOkButton) {
+                            resolvePeer(card, '耶！原来我没说错！给你点赞~ 接下来看你的了！');
                         } else {
-                            ops.push({ type: 'del', word: a[i - 1] });
-                            i--;
+                            peerFeedback(card, 'warn', '哈哈，其实我这次没说错哦，这句话很地道！');
+                            shakePeerBubble(card);
                         }
-                    }
-                    ops.reverse();
-                    
-                    return ops.map(op => {
-                        const word = escapeDiffWord(op.word);
-                        switch (op.type) {
-                            case 'same': return word;
-                            case 'del':  return '<span class="diff-del">' + word + '</span>';
-                            case 'ins':  return '<span class="diff-ins">' + word + '</span>';
-                        }
-                    }).join(' ');
-                }
-
-                // --- Update detective visual for processed cards ---
-                // Accept a card DOM element (NOT index) to avoid NodeList positional mismatch
-                function updateDetectiveVisual(cardElement) {
-                    if (!cardElement) return;
-                    const englishDiv = cardElement.querySelector('.english');
-                    if (englishDiv) {
-                        englishDiv.classList.remove('detectable');
-                        englishDiv.style.cursor = 'default';
-                        const icon = englishDiv.querySelector('.detective-icon');
-                        if (icon) icon.style.display = 'none';
-                    }
-                }
-
-                // --- Debounce guard for reportTrap ---
-                let _reportTrapBusy = false;
-
-                // --- Report a trap (click on english text) - Unified cost + One-search Lock ---
-                function reportTrap(cardElement) {
-                    if (!cardElement) return;
-                    if (_reportTrapBusy) return;
-                    _reportTrapBusy = true;
-                    setTimeout(() => { _reportTrapBusy = false; }, 300);
-
-                    const cardIndex = parseInt(cardElement.dataset.cardIndex);
-                    if (isNaN(cardIndex)) return;
-
-                    // === Ensure trapsState exists for this card ===
-                    ensureTrapState(appState, cardIndex);
-                    const trapState = getTrapState(cardIndex);
-                    if (!trapState) return;
-
-                    // === Lock 1: Already caught/auto-revealed? Block. ===
-                    if (trapState.isCaught || trapState.autoRevealed) return;
-
-                    // === Lock 2: Already searched? Block — no cost, no hint. ===
-                    if (trapState.isSearched) return;
-
-                    // === Lock 3: No chances left? Show message and block. ===
-                    if (appState.remainingChances <= 0) {
-                        showHint('搜查机会已耗尽...');
                         return;
                     }
 
-                    // === Step 1: Consume 1 chance (UNIFIED — regardless of trap or not) ===
-                    appState.remainingChances = Math.max(0, appState.remainingChances - 1);
+                    if (isOkButton) {
+                        peerFeedback(card, 'warn', '咦？我好像感觉哪里怪怪的，再帮我仔细瞧瞧？');
+                        shakePeerBubble(card);
+                        return;
+                    }
 
-                    // === Step 2: Mark card as searched (lock it forever) ===
-                    trapState.isSearched = true;
-
-                    // === Step 3: Determine if it's a trap ===
-                    const isTrap = cardElement.dataset.trap === 'true';
-
-                    if (isTrap) {
-                        // === CATCH! ===
-                        trapState.isCaught = true;
-                        if (!trapState.autoRevealed) {
-                            if (!appState.foundTraps.includes(cardIndex)) {
-                                appState.foundTraps.push(cardIndex);
-                            }
-                        }
-
-                        // Critical: Update DOM immediately (sync, not in setTimeout)
-                        updateCardUI(cardElement);
-
-                        saveAppState();
-                        updateChanceDisplay();
-                        updateDetectiveVisual(cardElement);
-
-                        // Visual effects (non-critical — wrapped so errors don't block critical path)
-                        try { startConfetti(); } catch (e) { /* ignore */ }
-                        cardElement.classList.add('flip');
-                        setTimeout(() => cardElement.classList.remove('flip'), 800);
-                        showHint('🎉 成功抓获陷阱！太厉害了！');
+                    if (chunkIndex === peer.error_chunk_index) {
+                        const explanation = peer.error_explanation || '';
+                        resolvePeer(
+                            card,
+                            '哇，被你发现了！' + (explanation ? ' ' + explanation : '') + ' 谢谢你帮我指出来~ 换你来展示一遍吧！'
+                        );
                     } else {
-                        // === False alarm: shake + message + visual cleanup ===
-                        cardElement.classList.add('shake');
-                        setTimeout(() => cardElement.classList.remove('shake'), 700);
-
-                        saveAppState();
-                        updateChanceDisplay();
-                        updateDetectiveVisual(cardElement);
-                        showHint('🤔 这一句看起来很完美哦！');
+                        peerFeedback(card, 'warn', '咦？我好像感觉哪里怪怪的，再帮我仔细瞧瞧？');
+                        shakePeerBubble(card);
                     }
                 }
 
-                // --- Initialize detective mode (with isSearched restoration) ---
-                function initDetectiveMode() {
-                    if (!CONFIG.trapCount || CONFIG.trapCount === 0) return;
+                function initPeerRelay() {
+                    document.querySelectorAll('.card[data-peer-relay]').forEach(card => {
+                        const peer = getPeerData(card);
+                        if (!peer) return;
 
-                    updateChanceDisplay();
+                        if (isPeerResolved(card)) {
+                            card.dataset.peerResolved = 'true';
+                            unlockStart(card);
+                            collapsePeer(card, true);
+                            return;
+                        }
 
-                    // Restore trap card UI state
-                    document.querySelectorAll('.card[data-trap="true"]').forEach(card => {
-                        updateCardUI(card);
+                        lockForPeer(card);
+
+                        card.querySelectorAll('.peer-chunk').forEach(chunk => {
+                            chunk.addEventListener('click', function() {
+                                const index = parseInt(this.dataset.chunkIndex, 10);
+                                handlePeerChoice(card, peer, false, Number.isFinite(index) ? index : -1);
+                            });
+                        });
+
+                        const okButton = card.querySelector('.peer-ok');
+                        if (okButton) {
+                            okButton.addEventListener('click', function() {
+                                handlePeerChoice(card, peer, true, -1);
+                            });
+                        }
                     });
+                }
 
-                    // Attach detective icons and click handlers
+                // ============================================================
+                //  起手式练习区（阶段 2）
+                // ============================================================
+
+                function getStartVariants(card) {
+                    if (!card || !card.dataset.startVariants) return [];
+                    try {
+                        const parsed = JSON.parse(card.dataset.startVariants);
+                        if (!Array.isArray(parsed)) return [];
+                        return parsed.filter(item => item && String(item.full_sentence || '').trim());
+                    } catch (e) {
+                        return [];
+                    }
+                }
+
+                // 选定 AI 变体后，右侧展示/朗读该变体；统计仍以 data-english 的主句为键，
+                // 避免同一张卡片因切换风格而产生多套进度。
+                function getActiveEnglish(card) {
+                    if (card && card.dataset.activeEnglish) {
+                        return decodeURIComponent(card.dataset.activeEnglish);
+                    }
+                    return decodeURIComponent(card.dataset.english || '');
+                }
+
+                function setActiveEnglish(card, fullSentence) {
+                    const canonical = decodeURIComponent(card.dataset.english || '');
+                    const next = String(fullSentence == null ? '' : fullSentence).trim();
+                    if (!next || next === canonical) delete card.dataset.activeEnglish;
+                    else card.dataset.activeEnglish = encodeURIComponent(next);
+
+                    const englishDiv = card.querySelector('.english');
+                    if (englishDiv) {
+                        englishDiv.textContent = next || canonical;
+                        wrapTextNodesInElement(englishDiv);
+                    }
+                }
+
+                function startCardThinking(chip) {
+                    const card = chip && chip.closest ? chip.closest('.card') : null;
+                    if (!card) return;
+                    if (card.hasAttribute('data-peer-pending')) return;
+
+                    card.querySelectorAll('.starter-chip').forEach(c => c.classList.remove('chosen'));
+                    chip.classList.add('chosen');
+
+                    const variants = getStartVariants(card);
+                    const variantIndex = parseInt(chip.dataset.variantIndex, 10);
+                    if (Number.isFinite(variantIndex) && variants[variantIndex]) {
+                        setActiveEnglish(card, variants[variantIndex].full_sentence);
+                    }
+
+                    const englishText = decodeURIComponent(card.dataset.english);
+                    const stats = getStats();
+                    if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
+                    // 思考起点 = 选定起手式的那一刻。已开始过的句子不覆盖时间戳。
+                    if (!stats[englishText]._revealTime && !(stats[englishText].count > 0)) {
+                        stats[englishText]._revealTime = Date.now();
+                        saveAppState();
+                    }
+                    const slot = card.querySelector('.start-slot');
+                    if (slot) slot.classList.add('ready');
+                }
+
+                function initStartLayout() {
                     document.querySelectorAll('.card[data-english]').forEach(card => {
-                        const ci = parseInt(card.dataset.cardIndex);
-                        if (isNaN(ci)) return;
-
-                        const trapState = getTrapState(ci);
                         const englishDiv = card.querySelector('.english');
-                        if (!englishDiv) return;
+                        const slot = card.querySelector('.start-slot');
+                        const statItem = getStats()[decodeURIComponent(card.dataset.english)];
+                        if ((statItem && statItem.count > 0) || (englishDiv && englishDiv.classList.contains('visible'))) {
+                            card.classList.add('expanded');
+                        }
 
-                        if (trapState && trapState.isSearched) {
-                            // Already searched: remove interactivity right away
-                            englishDiv.classList.remove('detectable');
-                            englishDiv.style.cursor = 'default';
-                        } else {
-                            // Not yet searched: make detectable
-                            englishDiv.classList.add('detectable');
-                            const icon = document.createElement('span');
-                            icon.className = 'detective-icon detective-click-target';
-                            icon.textContent = '🔍';
-                            englishDiv.appendChild(icon);
-
-                            englishDiv.addEventListener('click', function(e) {
-                                // 只有点击侦探图标本身才触发举报
-                                const detectiveTarget = e.target.closest('.detective-click-target');
-                                if (!detectiveTarget) return;
-                                // 如果英文尚未显示，自动显示它（点击🔍时无需先点揭示按钮）
-                                if (!this.classList.contains('visible')) {
-                                    this.classList.add('visible');
-                                }
-                                e.stopPropagation();
-                                e.preventDefault();
-                                // 向上找到带有 dataset.cardIndex 的父级卡片容器
-                                const parentCard = detectiveTarget.closest('.card');
-                                const cardIndex = parentCard ? parseInt(parentCard.dataset.cardIndex) : null;
-                                if (cardIndex !== null && !isNaN(cardIndex)) {
-                                    reportTrap(parentCard);
-                                }
+                        // 整块右侧槽位可点：未展开时点槽位空白处等同点「展开并朗读」
+                        if (slot && englishDiv) {
+                            slot.addEventListener('click', function(e) {
+                                if (card.classList.contains('expanded')) return;
+                                if (card.hasAttribute('data-peer-pending')) return;
+                                if (e.target.closest('.reveal-btn')) return;
+                                const btn = card.querySelector('.reveal-btn');
+                                if (btn && !btn.disabled) handleRevealBtn(btn, englishDiv.id);
                             });
                         }
                     });
@@ -649,34 +654,6 @@ ${WEAK_RUNTIME_SOURCE}
                     speechSynthesis.onvoiceschanged = populateVoiceList;
                 }
 
-                function revealChinese(el) {
-                    if (!el.classList.contains('revealed')) {
-                        el.classList.add('revealed');
-                        const card = el.closest('.card');
-                        const btn = card.querySelector('.reveal-btn');
-                        btn.classList.remove('locked');
-                        btn.disabled = false;
-                        const englishText = decodeURIComponent(card.dataset.english);
-                        const stats = getStats();
-                        if (!stats[englishText]) {
-                            stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
-                        }
-                        // [修复] 使用每句独立绝对时间戳，替代共享全局 sessionStartTime
-                        // Date.now() 返回绝对时间，不受浏览器后台挂起影响
-                        stats[englishText]._revealTime = Date.now();
-                        sessionStartTime = Date.now();
-                        saveAppState();
-
-                        const cardIndex = parseInt(card.dataset.cardIndex);
-                        if (!isNaN(cardIndex)) {
-                            const trapState = getTrapState(cardIndex);
-                            if (trapState && !trapState.isCaught) {
-                                saveAppState();
-                            }
-                        }
-                    }
-                }
-
                 function updateEnergyBar(energyBar, masteryCount, cardElement) {
                     const ears = energyBar.querySelectorAll('.ear-icon');
                     const count = Math.min(masteryCount, 3);
@@ -689,39 +666,40 @@ ${WEAK_RUNTIME_SOURCE}
                 }
 
                 function handleRevealBtn(btn, elementId) {
-                    const chineseDiv = btn.parentElement.querySelector('.chinese');
-                    if (!chineseDiv.classList.contains('revealed')) {
+                    const card = btn.closest('.card');
+                    if (!card) return;
+                    if (card.hasAttribute('data-peer-pending')) return;
+                    const chineseDiv = card.querySelector('.chinese');
+                    if (!chineseDiv || !chineseDiv.classList.contains('revealed')) {
                         alert("请先点击中文，思考如何翻译成英文哦！");
                         return;
                     }
-                    const card = btn.closest('.card');
                     const englishText = decodeURIComponent(card.dataset.english);
+                    const activeText = getActiveEnglish(card);
                     const englishDiv = document.getElementById(elementId);
+                    if (!englishDiv) return;
                     if (!englishDiv.classList.contains('visible')) {
                         englishDiv.classList.add('visible');
+                        card.classList.add('expanded');
                         btn.textContent = '再次朗读';
-                        btn.style.backgroundColor = '#4CAF50';
+                        btn.classList.add('revealed-once');
                         const stats = getStats();
                         if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
-                        // [修复] 使用每句独立的绝对时间戳（_revealTime），不依赖共享全局 sessionStartTime
-                        // Date.now() 返回绝对时间，浏览器后台/切标签页不会冻结计时
+                        // 使用每句独立的绝对时间戳（_revealTime），浏览器后台/切标签页不会冻结计时
                         const revealStart = stats[englishText]._revealTime || sessionStartTime || Date.now();
                         const rawDuration = Math.floor((Date.now() - revealStart) / 1000);
                         // 硬上限 300 秒（5分钟），防止长时间挂机产生不合理数据
-                        // 绝对不能使用 CONFIG.timeLimit 作为上限！保留真实超时数据用于评星判定
+                        // 不能用 CONFIG.timeLimit 作为上限！保留真实超时数据用于评星判定
                         const HARD_CAP_SECONDS = 300;
                         const duration = Math.min(rawDuration, HARD_CAP_SECONDS);
-                        // 使用后立即清理 _revealTime，防止页面刷新后残留旧时间戳
                         delete stats[englishText]._revealTime;
                         stats[englishText].time = Math.max(stats[englishText].time, duration);
                         stats[englishText].count += 1;
                         saveAppState();
-                        // [家长审计] 尝试捕获首次快照
                         tryCaptureFirstTry();
-                        speakTextWithTracking(englishText, card, btn);
+                        speakTextWithTracking(activeText, card, btn);
                     } else {
-                        // 只有「确实存在活跃会话且属于本按钮」才拦截；历史遗留的
-                        // dataset.playing 标记会自动清理，避免永久锁死
+                        // 只有「确实存在活跃会话且属于本按钮」才拦截
                         if (activePlayback && !activePlayback.finished && activePlayback.btn === btn) {
                             alert("正在朗读中，请稍候...");
                             return;
@@ -732,7 +710,7 @@ ${WEAK_RUNTIME_SOURCE}
                             btn.classList.remove('playing');
                             card.classList.remove('is-playing');
                         }
-                        speakTextWithTracking(englishText, card, btn);
+                        speakTextWithTracking(activeText, card, btn);
                     }
                 }
 
@@ -877,29 +855,9 @@ ${WEAK_RUNTIME_SOURCE}
                     if (!cardElement || !englishText || !stats) return;
                     if (!stats[englishText]) stats[englishText] = { replay: 0, time: 0, count: 0, mastery_count: 0 };
                     stats[englishText].replay += 1;
-                    const cardIdx = parseInt(cardElement.dataset.cardIndex);
-                    const trapState = (!isNaN(cardIdx) && appState.trapsState[cardIdx]) || null;
-                    const isUncaughtTrap = cardElement.dataset.trap === 'true' && !(trapState && trapState.isCaught);
-                    // Energy Lock: uncaught traps cannot gain energy
-                    if (!isUncaughtTrap) {
-                        stats[englishText].mastery_count += 1;
-                    }
-                    if (energyBar) updateEnergyBar(energyBar, isUncaughtTrap ? 0 : stats[englishText].mastery_count, cardElement);
-
-                    // === "Two-Strike" auto-reveal logic ===
-                    if (isUncaughtTrap && !isNaN(cardIdx)) {
-                        ensureTrapState(appState, cardIdx);
-                        const ts = getTrapState(cardIdx);
-                        if (ts) {
-                            ts.wrongReadCount = (ts.wrongReadCount || 0) + 1;
-                            saveAppState();
-                            if (ts.wrongReadCount >= 2) {
-                                setTimeout(function() { autoRevealTrap(cardIdx); }, 500);
-                            }
-                        }
-                    } else {
-                        saveAppState();
-                    }
+                    stats[englishText].mastery_count += 1;
+                    if (energyBar) updateEnergyBar(energyBar, stats[englishText].mastery_count, cardElement);
+                    saveAppState();
                 }
 
                 function speakTextWithTracking(text, cardElement, btnElement) {
@@ -969,45 +927,6 @@ ${WEAK_RUNTIME_SOURCE}
                     });
                 }
 
-                // --- Wrap text nodes into clickable word spans ---
-                function wrapTextNodesInElement(element) {
-                    if (!element) return;
-                    const childNodes = Array.from(element.childNodes);
-                    childNodes.forEach(node => {
-                        if (node.nodeType === Node.TEXT_NODE) {
-                            const text = node.textContent;
-                            if (text.trim() === '') return;
-
-                            const fragment = document.createDocumentFragment();
-                            const parts = text.split(/(\\s+)/);
-                            parts.forEach(part => {
-                                if (part.trim() === '') {
-                                    fragment.appendChild(document.createTextNode(part));
-                                } else {
-                                    const span = document.createElement('span');
-                                    span.className = 'word-span';
-                                    const cleanWord = part.replace(/[.,\\/#\\!$%\\^&\\*;:{}_~()?"'’\\-]/g, "").trim();
-                                    span.dataset.word = cleanWord;
-                                    span.textContent = part;
-                                    fragment.appendChild(span);
-                                }
-                            });
-                            element.replaceChild(fragment, node);
-                          } else if (node.nodeType === Node.ELEMENT_NODE) {
-                               // 拦截红色错误词（DEL / wrong-word / diff-del），放行蓝色正确词（correct-word / diff-ins）
-                               const isWrongElement = node.tagName === 'DEL' ||
-                                                      node.classList.contains('wrong-word') ||
-                                                      node.classList.contains('diff-del');
-                               if (isWrongElement) {
-                                   return; // 跳过红色错误文本，不分词、不高亮、不点读
-                               }
-                              if (!node.classList.contains('word-span')) {
-                                  wrapTextNodesInElement(node);
-                              }
-                          }
-                    });
-                }
-
                 // --- Speak a single word using current voice settings ---
                 function speakSingleWord(word) {
                     if (!('speechSynthesis' in window)) return;
@@ -1024,7 +943,7 @@ ${WEAK_RUNTIME_SOURCE}
                     utterance.lang = 'en-US';
 
                     const femaleVoiceSelect = document.getElementById('femaleVoiceSelect');
-                    const speedSelect = document.getElementById('speedSelectGenerated');
+                    const speedSelectEl = document.getElementById('speedSelectGenerated');
 
                     if (femaleVoiceSelect && femaleVoiceSelect.value) {
                         const voices = window.speechSynthesis.getVoices();
@@ -1034,11 +953,7 @@ ${WEAK_RUNTIME_SOURCE}
                         }
                     }
 
-                    if (speedSelect) {
-                        utterance.rate = parseFloat(speedSelect.value) || 0.7;
-                    } else {
-                        utterance.rate = 0.7;
-                    }
+                    utterance.rate = speedSelectEl ? (parseFloat(speedSelectEl.value) || 0.7) : 0.7;
 
                     // 与整句朗读保持一致：cancel 后跨 tick 再 speak
                     deferSpeech(function() {
@@ -1050,60 +965,13 @@ ${WEAK_RUNTIME_SOURCE}
                     });
                 }
 
-                // --- Global click delegate for word-span clicks + detective mode compatibility ---
+                // --- Global click delegate for word-span clicks ---
                 document.addEventListener('click', function(e) {
-                    // 如果点击的是侦探图标，直接退出，不触发任何单词点读
-                    if (e.target.closest('.detective-click-target')) return;
-
                     const wordSpan = e.target.closest('.word-span');
-                    if (wordSpan) {
-                        const word = wordSpan.dataset.word;
-                        if (word) {
-                            speakSingleWord(word);
-                        }
-
-                        const englishDiv = wordSpan.closest('.english');
-                        if (!englishDiv || !englishDiv.classList.contains('detectable')) {
-                            e.stopPropagation();
-                        }
-                    }
+                    if (!wordSpan) return;
+                    const word = wordSpan.dataset.word;
+                    if (word) speakSingleWord(word);
                 });
-
-                // --- Create persistent click-to-dismiss overlay ---
-                function showPersistentHint(mainText) {
-                    const overlay = document.createElement('div');
-                    overlay.className = 'persistent-hint-overlay';
-                    overlay.innerHTML = '<div class="persistent-hint-box"><div class="hint-main">'
-                        + mainText
-                        + '</div><div class="hint-sub">(点击任意位置关闭提示)</div></div>';
-                    overlay.addEventListener('click', function() {
-                        overlay.remove();
-                    });
-                    document.body.appendChild(overlay);
-                }
-
-                // --- Auto-reveal trap when child reads wrong sentence 2 times (two-strike rule) ---
-                function autoRevealTrap(cardIndex) {
-                    const trapState = getTrapState(cardIndex);
-                    if (!trapState || trapState.isCaught) return;
-
-                    const card = document.querySelector('.card[data-card-index="' + cardIndex + '"]');
-                    if (!card) return;
-
-                    trapState.isCaught = true;
-                    trapState.autoRevealed = true;
-                    saveAppState();
-
-                    updateCardUI(card);
-                    updateDetectiveVisual(card);
-
-                    showPersistentHint('🕵️ 发现潜伏的错句！看来它躲过了你的法眼。这是正确的句子，请重新练习吧！');
-
-                    const energyBar = card.querySelector('.energy-bar');
-                    if (energyBar) {
-                        updateEnergyBar(energyBar, 0, card);
-                    }
-                }
 
                 // --- 星级评定（含防速刷检测） ---
                 function calculateStars() {
@@ -1113,7 +981,6 @@ ${WEAK_RUNTIME_SOURCE}
                     let maxReplayCount = 0;
                     let goldenEarSentence = '';
                     let maxReplay = 0;
-                    let maxTime = 0;
                     let allWithinHalfTime = true;
                     let allReplayZero = true;
                     let hasSpeedrunFlag = false;
@@ -1121,7 +988,6 @@ ${WEAK_RUNTIME_SOURCE}
                     for (let key in stats) {
                         const item = stats[key];
                         total++;
-                        maxTime = Math.max(maxTime, item.time);
                         maxReplay = Math.max(maxReplay, item.replay);
                         if (item.time > CONFIG.timeLimit * 0.5) allWithinHalfTime = false;
                         if (item.replay > 0) allReplayZero = false;
@@ -1155,17 +1021,7 @@ ${WEAK_RUNTIME_SOURCE}
                         else if (perfect === total && !allReplayZero) stars = 4;
                         else { const r = perfect / total; if (r >= 0.8) stars = 4; else if (r >= 0.5) stars = 3; else if (r > 0) stars = 2; else stars = 1; }
                     }
-                    // Detective rating: count manually found traps only (exclude auto-revealed)
-                    let manuallyFound = 0;
-                    if (CONFIG.trapCount > 0) {
-                        appState.foundTraps.forEach(tIdx => {
-                            const ts = getTrapState(tIdx);
-                            if (ts && !ts.autoRevealed) manuallyFound++;
-                        });
-                    }
-                    const totalTraps = CONFIG.trapCount;
-                    const allTrapsFound = totalTraps > 0 && manuallyFound >= totalTraps;
-                    return { stars, total, perfect, masteredList, polishingList, goldenEarSentence, maxReplayCount, maxReplay, trapsFound: manuallyFound, totalTraps, allTrapsFound, hasSpeedrunFlag, speedrunSentences };
+                    return { stars, total, perfect, masteredList, polishingList, goldenEarSentence, maxReplayCount, maxReplay, hasSpeedrunFlag, speedrunSentences };
                 }
 
                 function generateReport() {
@@ -1194,12 +1050,9 @@ ${WEAK_RUNTIME_SOURCE}
                         report += '颁发给听取次数最多的句子：\\n';
                         report += '  🏅 "' + result.goldenEarSentence + '" 共听取 ' + result.maxReplayCount + ' 次\\n\\n';
                     }
-                    // Detective report (auto-revealed traps excluded from count)
-                    if (CONFIG.trapCount > 0) {
-                        report += '🔍 侦探报告：\\n';
-                        report += '在 ' + CONFIG.trapCount + ' 个潜伏的错误中，你成功识破了 ' + result.trapsFound + ' 个！';
-                        if (result.allTrapsFound) report += ' 🌟 全部抓获，洞察力无与伦比！';
-                        report += '\\n\\n';
+                    const peerCards = document.querySelectorAll('.card[data-peer-relay]').length;
+                    if (peerCards > 0) {
+                        report += '🎭 同伴抢答：完成了 ' + peerCards + ' 次接力辨析，帮助同伴发现/确认了句子。\\n\\n';
                     }
                     // 异常检测报告
                     if (result.hasSpeedrunFlag) {
@@ -1254,16 +1107,6 @@ ${WEAK_RUNTIME_SOURCE}
                         return;
                     }
 
-                    // Check for uncaptured traps (not even auto-revealed)
-                    const hasUncaughtTraps = CONFIG.trapCount > 0 && CONFIG.trapData.some(t => {
-                        const ts = getTrapState(t.index);
-                        return !ts || !ts.isCaught;
-                    });
-                    if (hasUncaughtTraps) {
-                        alert('🚨 警报！有潜伏的错误逃脱了你的法眼！再仔细检查一下那些无法积攒能量（耳机不亮）的句子吧！');
-                        return;
-                    }
-
                     // 把本次练习的观察写入 Outbox（生疏句 + 低分通过都保留）
                     try { WeakReview.finalize('claim'); } catch (e) { /* ignore */ }
 
@@ -1274,10 +1117,6 @@ ${WEAK_RUNTIME_SOURCE}
                     starDisplayEl.classList.remove('hidden');
                     if (result.stars === 6) starRatingEl.innerHTML = '<span class="moon-glow">🌙🌙🌙🌙🌙🌙</span>';
                     else starRatingEl.textContent = '⭐'.repeat(result.stars);
-                    if (CONFIG.trapCount > 0) {
-                        const mags = '🔍'.repeat(result.trapsFound);
-                        if (mags) starRatingEl.textContent += ' + ' + mags;
-                    }
                     const messages = {
                         6: '🚀 超越时空的极速大师！你已经形成了英语反射弧！',
                         5: '🌟 卓越！完美表现，你是英语小天才！',
@@ -1297,18 +1136,6 @@ ${WEAK_RUNTIME_SOURCE}
                     if (result.stars === 6) {}
                     else if (hasMasteryBased && result.stars === 5) msg = '🌟 地道发音大师！坚持打磨，发音已臻化境！';
                     medalMsgEl.textContent = msg;
-                    if (CONFIG.trapCount > 0) {
-                        detSummaryEl.classList.remove('hidden');
-                        if (result.allTrapsFound) {
-                            detSummaryEl.textContent = '🔍 侦探总结：在 ' + CONFIG.trapCount + ' 个潜伏的错误中，你成功识破了 ' + result.trapsFound + ' 个！神探！这种洞察力真是无与伦比！';
-                        } else if (result.trapsFound === 0) {
-                            detSummaryEl.textContent = '🔍 侦探总结：哎呀，今天陷阱躲得太深了，下次一定要把它们揪出来哦！';
-                        } else {
-                            detSummaryEl.textContent = '🔍 侦探总结：在 ' + CONFIG.trapCount + ' 个潜伏的错误中，你成功识破了 ' + result.trapsFound + ' 个！继续加油！';
-                        }
-                    } else {
-                        detSummaryEl.classList.add('hidden');
-                    }
                     const report = generateReport();
                     const today = new Date();
                     const dateStr = today.getFullYear() + '-' + String(today.getMonth()+1).padStart(2,'0') + '-' + String(today.getDate()).padStart(2,'0');
@@ -1390,101 +1217,60 @@ ${WEAK_RUNTIME_SOURCE}
                 function refreshPersist() {
                     const stats = getStats();
 
-                    // [修复] 清理所有句子残留的 _revealTime（防止页面刷新后复用旧时间戳）
+                    // 清理所有句子残留的 _revealTime（防止页面刷新后复用旧时间戳）
                     Object.keys(stats).forEach(key => {
                         if (stats[key]._revealTime !== undefined) delete stats[key]._revealTime;
                     });
 
                     document.querySelectorAll('.card[data-english]').forEach(card => {
-                        const ci = parseInt(card.dataset.cardIndex);
-                        if (isNaN(ci)) return;
-
                         const englishText = decodeURIComponent(card.dataset.english);
                         const statItem = stats[englishText];
-                        const trapState = getTrapState(ci);
                         const chineseDiv = card.querySelector('.chinese');
                         const englishDiv = card.querySelector('.english');
                         const btn = card.querySelector('.reveal-btn');
                         const energyBar = card.querySelector('.energy-bar');
 
-                        // === 1. Translation / stats-based recovery ===
-                        if (statItem) {
-                            // Reveal translation
-                            if (chineseDiv) chineseDiv.classList.add('revealed');
-                            // Unlock button
+                        if (!statItem) return;
+
+                        // Reveal translation
+                        if (chineseDiv) chineseDiv.classList.add('revealed');
+                        // Unlock button
+                        if (btn) {
+                            btn.classList.remove('locked');
+                            btn.disabled = false;
+                        }
+
+                        if (statItem.count > 0) {
+                            // Show english text if it was visible before (count > 0 means user already saw it)
+                            if (englishDiv) englishDiv.classList.add('visible');
+                            // Update button text
                             if (btn) {
-                                btn.classList.remove('locked');
-                                btn.disabled = false;
+                                btn.textContent = '再次朗读';
+                                btn.classList.add('revealed-once');
                             }
-
-                            if (statItem.count > 0) {
-                                // Show english text if it was visible before (count > 0 means user already saw it)
-                                if (englishDiv) {
-                                    englishDiv.classList.add('visible');
-                                }
-                                // Update button text
-                                if (btn) {
-                                    btn.textContent = '再次朗读';
-                                    btn.style.backgroundColor = '#4CAF50';
-                                }
-                                // Restore energy bar
-                                if (energyBar && statItem.mastery_count > 0) {
-                                    updateEnergyBar(energyBar, statItem.mastery_count, card);
-                                }
+                            card.classList.add('expanded');
+                            // Restore energy bar
+                            if (energyBar && statItem.mastery_count > 0) {
+                                updateEnergyBar(energyBar, statItem.mastery_count, card);
                             }
-                        }
-
-                        // === 2. Trap error-correction state recovery ===
-                        if (trapState && (trapState.isCaught || trapState.autoRevealed)) {
-                            const trapData = CONFIG.trapData.find(t => t.index === ci);
-                            if (trapData) {
-                                const encodedCorrect = encodeURIComponent(trapData.correct);
-                                card.dataset.english = encodedCorrect;
-                                card.classList.add('trap-caught');
-                                if (englishDiv) {
-                                    const diffHtml = computeDiff(trapData.english, trapData.correct);
-                                    englishDiv.innerHTML = diffHtml;
-                                    englishDiv.classList.add('visible');
-                                }
-                                if (energyBar) updateEnergyBar(energyBar, 0, card);
-                                if (chineseDiv) chineseDiv.classList.add('revealed');
-                                if (btn) {
-                                    btn.classList.remove('locked');
-                                    btn.disabled = false;
-                                }
-                            }
-                        }
-
-                        // === 3. Restore detective visual: if searched, remove interactivity ===
-                        if (trapState && trapState.isSearched) {
-                            updateDetectiveVisual(card);
                         }
                     });
                 }
 
                 function initPage() {
-                    // Step 1: For uncaught traps, set the displayed english to the trap text
-                    CONFIG.trapData.forEach(t => {
-                        const card = getCardByIndex(t.index);
-                        if (card) {
-                            const trapState = getTrapState(t.index);
-                            if (trapState && !trapState.isCaught) {
-                                const encodedTrap = encodeURIComponent(t.english);
-                                card.dataset.english = encodedTrap;
-                            }
-                        }
-                    });
-
-                    // Step 2: Restore all UI state from appState
+                    // Step 1: Restore all UI state from appState
                     refreshPersist();
 
-                    // Step 2.5: Wrap words for hover + click-to-pronounce
+                    // Step 2: Wrap words for hover + click-to-pronounce
                     document.querySelectorAll('.english').forEach(el => wrapTextNodesInElement(el));
 
-                    // Step 3: Init detective mode (chance bar, icons, click handlers)
-                    initDetectiveMode();
+                    // Step 3: Init peer relay (stage 1) — 辨析通过后才解锁起手式
+                    initPeerRelay();
 
-                    // Step 4: Init weak-sentence toolbar / manual marks
+                    // Step 4: Init starter layout (stage 2)
+                    initStartLayout();
+
+                    // Step 5: Init weak-sentence toolbar / manual marks
                     try { WeakReview.init(); } catch (e) { /* ignore */ }
                 }
 
